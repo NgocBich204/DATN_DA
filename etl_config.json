@@ -2,7 +2,7 @@
   "sqlserver": {
     "odbc_driver": "ODBC Driver 17 for SQL Server",
     "server": "localhost\\SQLEXPRESS",
-    "database": "Data_modunCRM",
+    "database": "Modun_crm",
     "auth": "windows",
     "encrypt": "yes",
     "trust_server_certificate": "yes"
@@ -11,7 +11,7 @@
     "raw_folder": "raw_data"
   },
   "options": {
-    "batch_size": 5000,
+    "batch_size": 4000,
     "file_type": "xlsx",
     "encoding": "utf-8-sig"
   }
