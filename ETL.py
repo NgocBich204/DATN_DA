@@ -268,7 +268,7 @@ df_rfm_grouped["Frequency"] = df_rfm_grouped["SoLanMua"]
 df_rfm_grouped["Monetary"] = df_rfm_grouped["TongTien"]
 
 df_rfm_final = df_rfm_grouped[["KhachHangID", "Recency", "Frequency", "Monetary"]].copy()
-
+# --------------------------------------------------------------
 # --- Bước 4: Lưu RFM vào database ---
 cursor.execute("""
 IF OBJECT_ID('RFM_KhachHang', 'U') IS NULL
@@ -299,7 +299,7 @@ for _, row in df_rfm_final.iterrows():
 conn.commit()
 print("✅ Đã cập nhật bảng RFM_KhachHang!")
 
-
+# ----------------------------------------------------------------------------------------
 # --- Bước 5: Chuẩn hóa dữ liệu ---
 X = df_rfm_final[["Recency", "Frequency", "Monetary"]]
 scaler = StandardScaler()
@@ -404,7 +404,7 @@ df_rfm_final["Cluster"] = kmeans.fit_predict(X_scaled)
 
 print(f"\n📊 Đã phân thành {optimal_k} cụm")
 print(df_rfm_final.head(10))
-
+# ------------------------------------------------------------------
 # --- Bước 8: Tự động gán tên phân khúc ---
 cluster_summary = df_rfm_final.groupby("Cluster")[["Recency", "Frequency", "Monetary"]].mean()
 

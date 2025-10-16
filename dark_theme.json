@@ -1,0 +1,7 @@
+{
+  "name": "Dark Theme",
+  "dataColors": ["#3A80BA", "#00C9A7", "#FFC107", "#FF6B6B", "#9B59B6"],
+  "background": "#121212",
+  "foreground": "#E0E0E0",
+  "tableAccent": "#00C9A7"
+}

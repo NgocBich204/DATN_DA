@@ -1,0 +1,37 @@
+{
+  "name": "Global Data 365 Gradient Theme",
+  "dataColors": [
+    "#00B2FF",
+    "#00E6A8",
+    "#2C9AFF",
+    "#00C89C",
+    "#FFC93C",
+    "#FF6B6B",
+    "#5E60CE",
+    "#6930C3"
+  ],
+  "background": "#F4F9FB",
+  "foreground": "#1A2E3B",
+  "tableAccent": "#00B2FF",
+  "visualStyles": {
+    "*": {
+      "*": {
+        "titleText": [{ "color": { "solid": { "color": "#1A2E3B" } } }],
+        "labelColor": [{ "color": { "solid": { "color": "#1A2E3B" } } }],
+        "background": [{ "color": { "solid": { "color": "#FFFFFF" } } }],
+        "border": [{ "color": { "solid": { "color": "#E0E0E0" } } }],
+        "visualHeader": [
+          {
+            "foreground": { "solid": { "color": "#00B2FF" } },
+            "background": { "solid": { "color": "#F4F9FB" } }
+          }
+        ]
+      }
+    }
+  },
+  "textClasses": {
+    "title": { "color": "#1A2E3B", "fontSize": 14 },
+    "label": { "color": "#1A2E3B", "fontSize": 12 },
+    "callout": { "color": "#00C89C", "fontSize": 16 }
+  }
+}
