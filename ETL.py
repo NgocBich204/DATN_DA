@@ -10,7 +10,7 @@ import numpy as np
 # --- Cấu hình kết nối SQL Server ---
 odbc_driver = "ODBC Driver 17 for SQL Server"
 server = "localhost\\SQLEXPRESS"
-database = "modun_crm_customer"
+database = "eg_crmmodun"
 auth = "windows"
 encrypt = "yes"
 trust_server_certificate = "yes"
@@ -34,7 +34,7 @@ encoding = "utf-8-sig"
 
 # --- Đọc dữ liệu từ file excel ---
 raw_folder = r"C:\Users\ngoc bich\Desktop\DATN_DA\raw_data"
-file_name = "sneaker_sales_fact_donhang.xlsx"
+file_name ="sneaker_sales_data_final.xlsx"
 
 file_path = os.path.join(raw_folder, file_name)
 
@@ -53,6 +53,8 @@ df.columns = df.columns.str.strip()
 # Chuyển kiểu ngày đúng định dạng, lỗi chuyển thành NaT
 df['NgaySinh'] = pd.to_datetime(df['NgaySinh'], errors='coerce', dayfirst=True)
 df['NgayMua'] = pd.to_datetime(df['NgayMua'], errors='coerce', dayfirst=True)
+# --- Tách cột giờ từ NgayMua (lưu ý: NgayMua đã có dạng datetime) ---
+df["Gio"] = df["NgayMua"].dt.hour.fillna(0).astype(int)
 
 # Xoá dòng có ngày sinh hoặc ngày mua không hợp lệ
 df = df.dropna(subset=['NgaySinh', 'NgayMua'])
@@ -83,7 +85,7 @@ CREATE TABLE dbo.StagingSaleData (
     GioiTinh NVARCHAR(10),
     NgaySinh DATE,
     DonHang NVARCHAR(50),
-    NgayMua DATE,
+    NgayMua DATETIME,
     Traffic NVARCHAR(100),
     TinhThanh NVARCHAR(100),
     QuanHuyen NVARCHAR(100),
@@ -153,7 +155,8 @@ CREATE TABLE dbo.DimDate (
     Ngay DATE,
     Thang INT,
     Quy INT,
-    Nam INT
+    Nam INT,
+    Gio INT
 );
 IF OBJECT_ID('dbo.FactDonHang', 'U') IS NOT NULL DROP TABLE dbo.FactDonHang;
 CREATE TABLE dbo.FactDonHang (
@@ -204,11 +207,21 @@ HAVING NOT EXISTS (SELECT 1 FROM dbo.DimSP WHERE SKU = dbo.StagingSaleData.SKU)
 conn.commit()
 
 cursor.execute("""
-INSERT INTO dbo.DimDate (Ngay, Thang, Quy, Nam)
-SELECT DISTINCT NgayMua, MONTH(NgayMua), DATEPART(QUARTER, NgayMua), YEAR(NgayMua) FROM dbo.StagingSaleData s
+INSERT INTO dbo.DimDate (Ngay, Gio, Thang, Quy, Nam)
+SELECT DISTINCT 
+    CONVERT(date, NgayMua) AS Ngay,
+    DATEPART(HOUR, NgayMua) AS Gio,
+    MONTH(NgayMua),
+    DATEPART(QUARTER, NgayMua),
+    YEAR(NgayMua)
+FROM dbo.StagingSaleData s
 WHERE NgayMua IS NOT NULL
-AND NOT EXISTS (SELECT 1 FROM dbo.DimDate d WHERE d.Ngay = s.NgayMua)
-""")
+AND NOT EXISTS (
+    SELECT 1 FROM dbo.DimDate d 
+    WHERE d.Ngay = CONVERT(date, s.NgayMua)
+      AND d.Gio = DATEPART(HOUR, s.NgayMua)
+)
+""") 
 conn.commit()
 
 cursor.execute("""
