@@ -2,25 +2,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 def show():
-    st.markdown("""
-        <h2 id="crm-header" style="
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            background-color: #0f1b2b;
-            color: white;
-            font-weight: 700;
-            padding: 15px 0;
-            text-align: center;
-            z-index: 999;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.4);
-            transition: top 0.4s ease;">
-            📊 Dashboard Tổng quan CRM
-        </h2>
-
-        <div style="margin-top:90px;"></div>
-    """, unsafe_allow_html=True)
+  
 
     # iframe Power BI full màn hình
     components.html(
@@ -43,9 +25,8 @@ def show():
         </style>
         </head>
         <body>
-            <iframe title="modun_crm_customer1"
-                src="https://app.powerbi.com/view?r=eyJrIjoiMzVkOGY2MjEtNjlhMC00MWEyLTk2ZWYtYWZjYmUyODBiYjZiIiwidCI6IjZhYzJhZDA2LTY5MmMtNDY2My1iN2FmLWE5ZmYyYTg2NmQwYyIsImMiOjEwfQ%3D%3D&pageName=25d8ff63bedf72b5ea42"
-                allowFullScreen="true"></iframe>
+            <iframe title="dashboard_crm" src="https://app.powerbi.com/view?r=eyJrIjoiZTkyNjBjMmItNTczZi00NTlhLWE2YzAtNzlhYzU2ZmI3OGY4IiwidCI6IjZhYzJhZDA2LTY5MmMtNDY2My1iN2FmLWE5ZmYyYTg2NmQwYyIsImMiOjEwfQ%3D%3D&pageName=25d8ff63bedf72b5ea42" frameborder="0" allowFullScreen="true"></iframe>
+                
 
             <script>
                 let lastScrollTop = 0;
