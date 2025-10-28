@@ -1,0 +1,110 @@
+🔄 Đang tạo danh sách khách hàng...
+✅ Đã tạo 10000 khách hàng
+✅ Đã tạo 10000 phân khúc khách hàng
+
+🔄 Đang sinh dữ liệu đơn hàng...   
+  ⏳ Đã xử lý 1000/10000 khách hàng (4,805 dòng)
+  ⏳ Đã xử lý 2000/10000 khách hàng (9,637 dòng)
+  ⏳ Đã xử lý 3000/10000 khách hàng (14,327 dòng)
+  ⏳ Đã xử lý 4000/10000 khách hàng (18,853 dòng)
+  ⏳ Đã xử lý 5000/10000 khách hàng (23,796 dòng)
+  ⏳ Đã xử lý 6000/10000 khách hàng (28,476 dòng)
+  ⏳ Đã xử lý 7000/10000 khách hàng (33,302 dòng)
+  ⏳ Đã xử lý 8000/10000 khách hàng (38,212 dòng)
+  ⏳ Đã xử lý 9000/10000 khách hàng (42,880 dòng)
+
+✅ Đã sinh 47,729 dòng dữ liệu
+📝 Đang tạo DataFrame...
+💾 Đang xuất file Excel...
+
+======================================================================
+✅ SINH DỮ LIỆU THÀNH CÔNG - SNEAKER SALES DATA
+======================================================================
+
+📊 THỐNG KÊ TỔNG QUAN:
+  • Tổng số dòng: 47,729
+  • Số đơn hàng: 32,815
+  • Số khách hàng: 10,000
+  • Tỷ lệ khách quay lại: 55.00%
+  • Doanh thu thuần trung bình: 2,507,225 VNĐ
+
+👥 PHÂN BỐ GIỚI TÍNH:
+  • Nam: 7,000 KH (70.0%)
+  • Nữ: 3,000 KH (30.0%)
+
+📅 PHÂN BỐ THEO NGÀY TRONG TUẦN:
+  • T2: 2,828 đơn (8.6%)
+  • T3: 2,707 đơn (8.2%)
+  • T4: 2,667 đơn (8.1%)
+  • T5: 2,724 đơn (8.3%)
+  • T6: 7,120 đơn (21.7%)
+  • T7: 7,382 đơn (22.5%)
+  • CN: 7,387 đơn (22.5%)
+
+⏰ PHÂN BỐ GIỜ MUA (TOP 5):
+  • 21h: 5,178 đơn (15.8%)
+  • 20h: 5,114 đơn (15.6%)
+  • 9h: 1,781 đơn (5.4%)
+  • 22h: 1,775 đơn (5.4%)
+  • 15h: 1,766 đơn (5.4%)
+c:\Users\ngoc bich\Desktop\DATN_DA\test.py:488: FutureWarning: The default of observed=False is deprecated and will be changed to True in a future version of pandas. Pass observed=False to retain current behavior or observed=True to adopt the future default and silence this warning.
+  age_dist = df.groupby('AgeGroup')['KhachHangID'].nunique()
+
+🎂 PHÂN BỐ ĐỘ TUỔI:
+  • <20 tuổi: 805 KH (8.1%)
+  • 20-22 tuổi: 4,540 KH (45.4%)
+  • 23-25 tuổi: 2,468 KH (24.7%)
+  • 26-30 tuổi: 1,480 KH (14.8%)
+  • 31+ tuổi: 707 KH (7.1%)
+
+🗺️ PHÂN BỐ THEO KHU VỰC:
+  • Hà Nội: 13,011 đơn (39.6%)
+  • TP HCM: 9,854 đơn (30.0%)
+  • Đà Nẵng: 4,989 đơn (15.2%)
+  • Hải Phòng: 2,627 đơn (8.0%)
+  • Cần Thơ: 2,334 đơn (7.1%)
+
+📱 NGUỒN TRUY CẬP:
+  • Tự tìm kiếm: 13,018 đơn (39.7%)
+  • Bạn bè giới thiệu: 8,303 đơn (25.3%)
+  • Quảng cáo Facebook: 6,667 đơn (20.3%)
+  • Email Marketing: 3,252 đơn (9.9%)
+  • KOL/Influencer: 1,575 đơn (4.8%)
+
+🛍️ TOP 5 SẢN PHẨM BÁN CHẠY:
+  1. Air Force 1: 23,971 sp (30.3%)
+  2. Air Jordan 1: 19,654 sp (24.8%)
+  3. Yeezy Boost 350: 12,003 sp (15.2%)
+  4. Ultraboost 22: 7,973 sp (10.1%)
+  5. Chuck Taylor All Star: 6,010 sp (7.6%)
+
+🏷️ DOANH THU THEO THƯƠNG HIỆU:
+  • Nike: 88,523,185,020 VNĐ (62.4%)
+  • Adidas: 33,979,852,254 VNĐ (23.9%)
+  • Converse: 8,174,397,262 VNĐ (5.8%)
+  • Puma: 5,781,790,024 VNĐ (4.1%)
+  • New Balance: 5,459,583,489 VNĐ (3.8%)
+
+🔖 THỐNG KÊ SKU:
+  • Số SKU duy nhất: 10
+  • Số sản phẩm duy nhất: 10
+
+📦 SẢN PHẨM TRÊN MỖI ĐƠN:
+  • 1 SP: 21,303 đơn (64.9%)
+  • 2 SP: 8,554 đơn (26.1%)
+  • 3 SP: 2,514 đơn (7.7%)
+  • 4 SP: 444 đơn (1.4%)
+
+💎 PHÂN TÍCH RFM:
+  • Recency trung bình: 142 ngày
+  • Frequency trung bình: 3.28 đơn/KH
+  • Monetary trung bình: 11,966,735 VNĐ/KH
+
+👥 PHÂN KHÚC KHÁCH HÀNG:
+  • Champions (8-15 đơn): 908 KH (9.1%)
+  • Loyal (5-7 đơn): 1,998 KH (20.0%)
+  • Potential (3-4 đơn): 2,017 KH (20.2%)
+  • Recent (2 đơn): 577 KH (5.8%)
+  • Single (1 đơn): 4,500 KH (45.0%)
+
+===================================================

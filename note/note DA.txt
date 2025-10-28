@@ -1,0 +1,1 @@
+ Tôi có dataset tên là [dataset_name]. Bạn hãy liệt kê tất cả các cột trong datasets. Giai thích ngắn gọn các cột và ý nghĩa, Gợi ý các cột để phân tích .  
