@@ -3,13 +3,15 @@ import datetime
 import pandas as pd
 import pyodbc
 import json
-import numpy as np # Thêm thư viện này
-import smtplib      # <-- Thêm mới để gửi mail
-import ssl          # <-- Thêm mới để gửi mail
-from email.message import EmailMessage # <-- Thêm mới để gửi mail
+import numpy as np
+import smtplib
+import ssl
+from email.message import EmailMessage
+import base64
+from io import BytesIO
+from PIL import Image
 
 # --- CẤU HÌNH KẾT NỐI SQL SERVER ---
-# (Lấy từ file lookUpCustomer.py của bạn)
 odbc_driver = "ODBC Driver 17 for SQL Server"
 server = "localhost\\SQLEXPRESS"
 database = "test6"
@@ -26,7 +28,6 @@ conn_str = (
 )
 
 # --- DỮ LIỆU CẤU HÌNH (BUSINESS LOGIC) ---
-# ... (Giữ nguyên) ...
 config_data = {
     "objectives": [
         {'id': 'revenue', 'icon': '💰', 'title': 'Tối ưu hóa Doanh thu', 'description': 'Thúc đẩy doanh số từ tệp KH hiện tại, đặc biệt là nhóm có giá trị cao.'},
@@ -35,19 +36,14 @@ config_data = {
         {'id': 'launch', 'icon': '✨', 'title': 'Ra mắt Sản phẩm Mới', 'description': 'Giới thiệu SP mới đến các PK có khả năng tiếp nhận cao .'}
     ],
     
-    # *** BỘ QUY TẮC CHO KÊNH SỞ HỮU (OWNED) ***
-    # Đây là logic ánh xạ (mapping logic), không phải dữ liệu động.
     "mockDataOwned": {
         "segments": {
-            # Ánh xạ Mục tiêu (id) sang Tên Phân khúc (PhanKhuc trong CSDL)
             'revenue': ['Khách hàng VIP'],
             'conversion': ['Khách hàng mới', 'Khách hàng tiềm năng'],
             'awareness': ['Khách hàng có nguy cơ mất', 'Khách hàng yếu'],
             'launch': ['Khách hàng VIP', 'Khách hàng trung thành']
         },
-        # Chúng ta sẽ thay thế 'segmentDetails' bằng truy vấn CSDL
         "tactics": {
-            # Tên phân khúc (PhanKhuc)
             'Khách hàng VIP': {
                 'owned': [
                     {'id': 'privilege', 'name': 'Chương trình Đặc quyền (Không giảm giá)', 'desc': 'Early Access, Quà tặng Sinh nhật Vật lý, Freeship Vĩnh viễn.'},
@@ -86,7 +82,6 @@ config_data = {
             }
         },
         "tacticRecommendations": {
-            # Tên phân khúc (PhanKhuc)
             'Khách hàng VIP': ['privilege', 'upsell_email', 'referral'],
             'Khách hàng mới': ['onboarding', 'web_welcome'],
             'Khách hàng tiềm năng': ['onboarding'],
@@ -96,9 +91,7 @@ config_data = {
         }
     },
     
-    # *** BỘ QUY TẮC CHO SÀN TMĐT (MARKETPLACE) ***
     "mockDataMarketplace": {
-        # 'segmentDistribution' SẼ ĐƯỢC THAY THẾ BẰNG DỮ LIỆU THẬT
         "tactics": {
             'owned': [],
             'marketplace': [
@@ -112,10 +105,23 @@ config_data = {
     }
 }
 
-# --- CÁC HÀM TƯƠNG TÁC VỚI DATABASE (SQL SERVER) ---
+# --- HÀM XỬ LÝ HÌNH ẢNH ---
+def image_to_base64(image_file):
+    """Chuyển đổi file ảnh upload thành base64 string để lưu vào CSDL"""
+    if image_file is None:
+        return None
+    try:
+        img = Image.open(image_file)
+        buffered = BytesIO()
+        img.save(buffered, format=img.format if img.format else "PNG")
+        img_str = base64.b64encode(buffered.getvalue()).decode()
+        return f"data:image/{img.format.lower() if img.format else 'png'};base64,{img_str}"
+    except Exception as e:
+        st.error(f"Lỗi xử lý ảnh: {e}")
+        return None
 
+# --- CÁC HÀM TƯƠNG TÁC VỚI DATABASE ---
 def get_db_connection():
-# ... (Giữ nguyên) ...
     """Tạo kết nối mới đến SQL Server."""
     try:
         return pyodbc.connect(conn_str)
@@ -124,7 +130,6 @@ def get_db_connection():
         return None
 
 def init_campaign_db():
-# ... (Giữ nguyên) ...
     """Khởi tạo bảng Campaign_Manager nếu chưa tồn tại."""
     conn = get_db_connection()
     if not conn:
@@ -159,7 +164,6 @@ def init_campaign_db():
 
 @st.cache_data(ttl=600)
 def load_campaigns_from_db():
-# ... (Giữ nguyên) ...
     """Tải tất cả chiến dịch đã lưu từ CSDL."""
     conn = get_db_connection()
     if not conn:
@@ -167,13 +171,10 @@ def load_campaigns_from_db():
         
     campaigns = []
     try:
-        # Dùng tên bảng mới
         df = pd.read_sql("SELECT * FROM Campaign_Manager_UX ORDER BY CampaignID DESC", conn)
         
-        # Chuyển DataFrame sang list of dicts (giống cấu trúc cũ)
         for _, row in df.iterrows():
             campaign = row.to_dict()
-            # Đổi tên cột CSDL sang tên key của session state
             campaign['id'] = campaign.pop('CampaignID')
             campaign['name'] = campaign.pop('Name')
             campaign['platform'] = campaign.pop('Platform')
@@ -187,7 +188,6 @@ def load_campaigns_from_db():
             campaign['startDate'] = str(campaign.pop('StartDate'))
             campaign['endDate'] = str(campaign.pop('EndDate'))
             campaign['notes'] = campaign.pop('Notes')
-            # Chuyển đổi JSON string về lại dict
             campaign['dynamicData'] = json.loads(campaign.pop('DynamicData')) if campaign.get('DynamicData') else {}
             campaigns.append(campaign)
             
@@ -201,14 +201,12 @@ def load_campaigns_from_db():
 
 @st.cache_data(ttl=600)
 def load_real_segment_data():
-# ... (Giữ nguyên) ...
     """Tải dữ liệu phân khúc THẬT từ CSDL."""
     conn = get_db_connection()
     if not conn:
         return pd.DataFrame()
     
     try:
-        # Truy vấn này lấy thông tin chi tiết của từng phân khúc
         query = """
         SELECT 
             PhanKhuc,
@@ -230,7 +228,6 @@ def load_real_segment_data():
         conn.close()
 
 def save_campaign_to_db(form_data, session_data):
-# ... (Giữ nguyên) ...
     """Lưu chiến dịch mới vào CSDL."""
     conn = get_db_connection()
     if not conn: return False
@@ -267,7 +264,6 @@ def save_campaign_to_db(form_data, session_data):
         conn.close()
 
 def update_campaign_status_in_db(campaign_id, new_status, new_revenue=None):
-# ... (Giữ nguyên) ...
     """Cập nhật trạng thái hoặc doanh thu."""
     conn = get_db_connection()
     if not conn: return
@@ -281,7 +277,7 @@ def update_campaign_status_in_db(campaign_id, new_status, new_revenue=None):
                  cur.execute("UPDATE Campaign_Manager_UX SET Status = ? WHERE CampaignID = ?",
                             (new_status, campaign_id))
         conn.commit()
-        st.cache_data.clear() # Xóa cache để tải lại
+        st.cache_data.clear()
     except Exception as e:
         st.error(f"Lỗi khi cập nhật chiến dịch: {e}")
     finally:
@@ -289,8 +285,7 @@ def update_campaign_status_in_db(campaign_id, new_status, new_revenue=None):
 
 @st.cache_data(ttl=600)
 def get_emails_for_segment(segment_name):
-# ... (Giữ nguyên) ...
-    """(HÀM MỚI) Lấy danh sách email cho một phân khúc."""
+    """Lấy danh sách email cho một phân khúc."""
     conn = get_db_connection()
     if not conn: return []
     try:
@@ -308,9 +303,8 @@ def get_emails_for_segment(segment_name):
     finally:
         conn.close()
 
-# --- KHỞI TẠO TRẠNG THÁI (SESSION STATE) ---
+# --- KHỞI TẠO TRẠNG THÁI ---
 def init_state():
-# ... (Giữ nguyên) ...
     defaults = {
         'current_step': 1,
         'selected_platform': None,
@@ -318,13 +312,12 @@ def init_state():
         'selected_segment': None,
         'selected_tactic': None,
         'view': 'wizard',
-        'demo_campaign_id': None, # Thêm state để quản lý modal demo
+        'show_demo_modal': False,
     }
     for key, value in defaults.items():
         if key not in st.session_state:
             st.session_state[key] = value
 
-    # === THAY ĐỔI QUAN TRỌNG: TẢI TỪ CSDL ===
     if 'campaigns' not in st.session_state:
         st.session_state.campaigns = load_campaigns_from_db() 
         
@@ -334,37 +327,28 @@ def init_state():
             4: "Chọn Chiến Thuật", 5: "Thiết Kế", 6: "Hoàn Tất"
         }
     
-    # Tải dữ liệu phân khúc thật
     if 'real_segment_data' not in st.session_state:
         st.session_state.real_segment_data = load_real_segment_data()
 
-
-# --- CÁC HÀM TIỆN ÍCH & ĐIỀU HƯỚNG ---
+# --- CÁC HÀM TIỆN ÍCH ---
 def format_currency(value):
-# ... (Giữ nguyên) ...
     try:
         val = float(value)
-        # Sử dụng định dạng tiền tệ Việt Nam
         return f"{val:,.0f} ₫".replace(",", ".")
     except (ValueError, TypeError, AttributeError):
         return "0 ₫"
 
-# === BỎ HÀM CŨ (get_dialog_function) VÌ GÂY PHỨC TẠP ===
-
 def go_to_step(step):
-# ... (Giữ nguyên) ...
     st.session_state.current_step = step
 
 def go_to_view(view_name):
-# ... (Giữ nguyên) ...
     st.session_state.view = view_name
     if view_name == 'wizard':
         st.session_state.current_step = 1
         reset_wizard()
-    st.rerun() # Thêm rerun để đảm bảo view cập nhật
+    st.rerun()
 
 def reset_wizard():
-# ... (Giữ nguyên) ...
     st.session_state.current_step = 1
     st.session_state.selected_platform = None
     st.session_state.selected_objective = None
@@ -373,7 +357,6 @@ def reset_wizard():
     update_stepper_names('owned')
 
 def update_stepper_names(platform):
-# ... (Giữ nguyên) ...
     if platform == 'owned':
         st.session_state.stepper_names = {
             1: "Chọn Nền Tảng", 2: "Chọn Mục Tiêu", 3: "Chọn Phân Khúc",
@@ -385,31 +368,25 @@ def update_stepper_names(platform):
             4: "Chọn Chiến Dịch", 5: "Thiết Kế", 6: "Hoàn Tất"
         }
 
-# --- CÁC HÀM XỬ LÝ (LOGIC TỪ JS) ---
-
+# --- CÁC HÀM XỬ LÝ LOGIC ---
 def select_platform(platform):
-# ... (Giữ nguyên) ...
     st.session_state.selected_platform = platform
     update_stepper_names(platform)
     go_to_step(2)
 
 def select_objective(goal_id, goal_title):
-# ... (Giữ nguyên) ...
     st.session_state.selected_objective = {'id': goal_id, 'title': goal_title}
     df_real_segments = st.session_state.real_segment_data
     
     if st.session_state.selected_platform == 'owned':
         go_to_step(3)
     elif st.session_state.selected_platform == 'marketplace':
-        
-        # === DÙNG DỮ LIỆU THẬT ===
         if df_real_segments.empty:
             st.error("Không thể tải dữ liệu phân khúc thật. Dùng dữ liệu dự phòng.")
             logic_name = 'Đề xuất chung'
         else:
             total_customers = df_real_segments['SoLuong'].sum()
             
-            # Logic map tên phân khúc thật sang nhóm logic
             map_rich = ['Khách hàng VIP', 'Khách hàng trung thành']
             map_at_risk = ['Khách hàng có nguy cơ mất', 'Khách hàng yếu']
             map_new = ['Khách hàng mới', 'Khách hàng tiềm năng']
@@ -420,9 +397,9 @@ def select_objective(goal_id, goal_title):
             only_new_percentage = df_real_segments[df_real_segments['PhanKhuc'] == 'Khách hàng mới']['SoLuong'].sum() / total_customers * 100
 
             logic_name = 'Đề xuất chung'
-            if goal_id == 'revenue' and rich_percentage > 30: # Giảm ngưỡng
+            if goal_id == 'revenue' and rich_percentage > 30:
                 logic_name = f"Tệp VIP/Trung thành ({rich_percentage:.0f}%)"
-            elif goal_id == 'awareness' and at_risk_percentage > 30: # Giảm ngưỡng
+            elif goal_id == 'awareness' and at_risk_percentage > 30:
                 logic_name = f"Tệp Nguy cơ ({at_risk_percentage:.0f}%)"
             elif goal_id == 'conversion' and (new_percentage > 40 or only_new_percentage > 20):
                 logic_name = f"Tệp Mới/Vãng lai ({only_new_percentage:.0f}%)"
@@ -431,23 +408,18 @@ def select_objective(goal_id, goal_title):
             else:
                 logic_name = 'Đề xuất chung theo Mục tiêu'
 
-        # Gán segment ảo cho luồng marketplace
         st.session_state.selected_segment = {'id': 'marketplace_logic', 'name': f"Logic: {logic_name}"}
-        go_to_step(4) # Bỏ qua bước 3
+        go_to_step(4)
 
 def select_segment(segment_id, segment_name):
-# ... (Giữ nguyên) ...
     st.session_state.selected_segment = {'id': segment_id, 'name': segment_name}
     go_to_step(4)
 
 def select_tactic(tactic_id, tactic_name, tactic_type):
-# ... (Giữ nguyên) ...
     st.session_state.selected_tactic = {'id': tactic_id, 'name': tactic_name, 'type': tactic_type}
     go_to_step(5)
 
 def handle_save_campaign(form_data):
-# ... (Giữ nguyên) ...
-    # Dữ liệu session
     session_data = {
         'platform': st.session_state.selected_platform,
         'objective': st.session_state.selected_objective,
@@ -455,39 +427,39 @@ def handle_save_campaign(form_data):
         'tactic': st.session_state.selected_tactic,
     }
     
-    # Thu thập dynamicData từ st.session_state
-    dynamic_data = {k: v for k, v in st.session_state.items() if k.startswith('tactic-')}
+    # Thu thập dynamic data và xử lý UploadedFile
+    dynamic_data = {}
+    for k, v in st.session_state.items():
+        if k.startswith('tactic-'):
+            # Bỏ qua UploadedFile object (key có '-uploader')
+            if k.endswith('-uploader'):
+                continue
+            # Các giá trị khác giữ nguyên (đã được xử lý trong render_dynamic_form)
+            dynamic_data[k] = v
+    
     form_data['dynamicData'] = dynamic_data
 
-    # === THAY ĐỔI QUAN TRỌNG: GHI VÀO CSDL ===
     success = save_campaign_to_db(form_data, session_data)
     
     if success:
         st.toast(f"Đã lưu chiến dịch: {form_data['campaign-name']}", icon="✅")
-        # Xóa cache để đảm bảo dashboard tải lại
         st.cache_data.clear()
-        # Tải lại campaigns vào session state
         st.session_state.campaigns = load_campaigns_from_db()
         go_to_view('dashboard')
         st.session_state.current_step = 6
     else:
         st.error("Lưu chiến dịch thất bại. Vui lòng kiểm tra lại.")
 
-
 def build_html_email(data):
-# ... (Giữ nguyên) ...
-    """(HÀM MỚI) Xây dựng nội dung email HTML từ dynamicData."""
-    
+    """Xây dựng nội dung email HTML từ dynamicData."""
     subject = data.get('tactic-email-subject', "Một thông báo mới từ chúng tôi")
-    image_url = data.get('tactic-email-image-url', '')
+    image_data = data.get('tactic-email-image', '')
     body = data.get('tactic-email-body', 'Đây là nội dung email của bạn.')
     button_text = data.get('tactic-email-button-text', 'Xem ngay')
     button_url = data.get('tactic-email-button-url', '#')
     
-    # Tạo body text (thay thế [Tên] nếu có)
     body_text = body.replace('\n', '<br>')
     
-    # Tạo HTML
     html_content = f"""
     <html>
     <head>
@@ -510,7 +482,7 @@ def build_html_email(data):
     <body>
         <div class="container">
             <p><strong>Tiêu đề: {subject}</strong></p>
-            {"<img src='" + image_url + "' alt='Banner' class='banner'>" if image_url else ""}
+            {"<img src='" + image_data + "' alt='Banner' class='banner'>" if image_data else ""}
             <div class="content">
                 <p>Xin chào,</p>
                 <p>{body_text}</p>
@@ -522,7 +494,6 @@ def build_html_email(data):
     </html>
     """
     
-    # Tạo nội dung plain text dự phòng
     plain_text_content = f"""
     Tiêu đề: {subject}
     Xin chào,
@@ -536,12 +507,9 @@ def build_html_email(data):
     
     return subject, plain_text_content, html_content
 
-
 def send_email_campaign(campaign, email_list):
-# ... (Giữ nguyên) ...
-    """(HÀM ĐƯỢC CẬP NHẬT) Soạn và gửi email HTML."""
+    """Soạn và gửi email HTML."""
     try:
-        # 1. Lấy cấu hình từ secrets
         config = st.secrets.email
         sender_email = config.sender_email
         sender_password = config.sender_password
@@ -549,21 +517,14 @@ def send_email_campaign(campaign, email_list):
         smtp_port = int(config.smtp_port)
     except Exception:
         st.error("Lỗi: Không tìm thấy cấu hình email trong file .streamlit/secrets.toml.")
-        st.error("Vui lòng thêm [email] với smtp_server, smtp_port, sender_email, sender_password.")
         return False
 
-    # 2. Soạn nội dung email (lấy từ dynamicData và build HTML)
     dynamic_data = campaign.get('dynamicData', {})
-    
-    # Dùng hàm mới để build email
     subject, plain_text_body, html_body = build_html_email(dynamic_data)
     
-    # 3. Logic gửi email
     context = ssl.create_default_context()
     try:
-        # Giới hạn 5 email cho demo để tránh spam và khóa tài khoản
         emails_to_send = email_list[:5] 
-        
         st.warning(f"Đang gửi {len(emails_to_send)} email (Giới hạn 5 email cho demo). Tổng tệp: {len(email_list)} KH.")
         
         with smtplib.SMTP_SSL(smtp_server, smtp_port, context=context) as server:
@@ -574,12 +535,8 @@ def send_email_campaign(campaign, email_list):
                 msg['Subject'] = subject
                 msg['From'] = sender_email
                 msg['To'] = receiver_email
-                
-                # Thêm nội dung plain text (dự phòng)
                 msg.set_content(plain_text_body)
-                # Thêm nội dung HTML (chính)
                 msg.add_alternative(html_body, subtype='html')
-                
                 server.send_message(msg)
             
             if len(email_list) > 5:
@@ -587,29 +544,23 @@ def send_email_campaign(campaign, email_list):
 
         return True
     except smtplib.SMTPException as e:
-        st.error(f"Lỗi SMTP: {e}. Vui lòng kiểm tra mật khẩu, cổng SMTP và cài đặt 'App Password'.")
+        st.error(f"Lỗi SMTP: {e}")
         return False
     except Exception as e:
         st.error(f"Lỗi khi gửi email: {e}")
         return False
 
-
 def activate_campaign(campaign_id):
-# ... (Giữ nguyên) ...
-    """(HÀM ĐƯỢC CHỈNH SỬA) Kích hoạt và Gửi Email."""
-    
-    # 1. Tìm thông tin chiến dịch
+    """Kích hoạt và Gửi Email."""
     campaign = next((c for c in st.session_state.campaigns if c['id'] == campaign_id), None)
     if not campaign:
         st.error("Không tìm thấy chiến dịch!")
         return
 
     segment_name = campaign.get('segment')
-    # Chỉ gửi mail nếu là 'owned' và có dynamicData (đã thiết kế)
     if not segment_name or st.session_state.selected_platform != 'owned' or not campaign.get('dynamicData'):
         st.info("Chiến dịch này không phải 'Kênh Sở Hữu' hoặc chưa thiết kế nội dung email. Chỉ kích hoạt trạng thái.")
     else:
-        # 2. Gửi Email (Logic mới)
         with st.spinner(f"Đang lấy danh sách email cho phân khúc: {segment_name}..."):
             email_list = get_emails_for_segment(segment_name)
         
@@ -623,21 +574,16 @@ def activate_campaign(campaign_id):
                 else:
                     st.success(f"Đã gửi {min(len(email_list), 5)} email demo thành công.")
 
-    # 3. Cập nhật CSDL (Logic cũ)
     update_campaign_status_in_db(campaign_id, '🟢 Đang chạy')
     st.session_state.campaigns = load_campaigns_from_db()
     st.toast(f"Đã kích hoạt chiến dịch", icon="🚀")
     st.rerun()
 
 def show_result_modal(campaign_id):
-# ... (Giữ nguyên) ...
     st.session_state.editing_campaign_id = campaign_id
 
 def save_campaign_result(campaign_id, revenue):
-# ... (Gi getYgyên) ...
-    # === THAY ĐỔI QUAN TRỌNG: CẬP NHẬT CSDL ===
     update_campaign_status_in_db(campaign_id, '🟡 Đã kết thúc', new_revenue=revenue)
-    # Tải lại campaigns vào session state
     st.session_state.campaigns = load_campaigns_from_db()
     st.toast(f"Đã cập nhật doanh thu", icon="💰")
     
@@ -645,12 +591,8 @@ def save_campaign_result(campaign_id, revenue):
         del st.session_state.editing_campaign_id
     st.rerun()
 
-# --- CÁC HÀM RENDER UI (GIAO DIỆN) ---
-
+# --- CÁC HÀM RENDER UI ---
 def render_header_and_nav():
-# ... (Giữ nguyên) ...
-    # Hàm này sẽ được gọi bên trong show()
-    # và `app.py` sẽ không gọi nó
     cols = st.columns([3, 1])
     with cols[0]:
         st.title("Module Đề Xuất Chiến Lược")
@@ -677,12 +619,10 @@ def render_header_and_nav():
     st.divider()
 
 def render_stepper():
-# ... (Giữ nguyên) ...
     current_step = st.session_state.current_step
     platform = st.session_state.selected_platform
     names = st.session_state.stepper_names
     
-    # Lọc ra các bước hợp lệ
     valid_steps = [1, 2, 4, 5, 6] if platform == 'marketplace' else [1, 2, 3, 4, 5, 6]
     cols = st.columns(len(valid_steps))
     
@@ -703,10 +643,7 @@ def render_stepper():
             else:
                 st.markdown(f"<span style='color:grey;'>{step_num}. {step_name}</span>", unsafe_allow_html=True)
 
-# --- Render các bước của Wizard ---
-
 def render_step_1():
-# ... (Giữ nguyên) ...
     st.header("Bước 1: Chọn Nền Tảng Kinh Doanh Chính", divider="blue")
     st.write("Khách hàng của bạn chủ yếu đang ở đâu? Điều này sẽ giúp hệ thống đề xuất kịch bản phù hợp.")
     
@@ -724,7 +661,6 @@ def render_step_1():
             st.button("Chọn Sàn TMĐT", on_click=select_platform, args=('marketplace',), use_container_width=True, type="primary")
 
 def render_step_2():
-# ... (Giữ nguyên) ...
     st.button("⬅️ Quay lại chọn Nền Tảng", on_click=go_to_step, args=(1,))
     
     if st.session_state.selected_platform == 'owned':
@@ -734,7 +670,6 @@ def render_step_2():
         st.header("Bước 2: Hiện trạng Dashboard & Chọn Mục tiêu", divider="blue")
         st.write("Hệ thống đã phân tích dữ liệu khách hàng từ CSDL. Hãy xem hiện trạng và chọn mục tiêu bạn muốn ưu tiên.")
         
-        # === RENDER DASHBOARD TỪ DỮ LIỆU THẬT ===
         with st.container(border=True):
             st.subheader("Hiện trạng Phân khúc Khách hàng (Từ CSDL)")
             
@@ -742,7 +677,6 @@ def render_step_2():
             if df_real.empty:
                 st.error("Không tải được dữ liệu phân khúc thật.")
             else:
-                # Định nghĩa màu (có thể tùy chỉnh)
                 color_map = {
                     'Khách hàng VIP': '#FACC15',
                     'Khách hàng trung thành': '#3B82F6',
@@ -754,15 +688,12 @@ def render_step_2():
                 }
                 
                 df_real['percentage'] = (df_real['SoLuong'] / df_real['SoLuong'].sum()) * 100
-                df_real['color'] = df_real['PhanKhuc'].map(color_map).fillna('#9CA3AF') # Màu xám cho PKhuc lạ
+                df_real['color'] = df_real['PhanKhuc'].map(color_map).fillna('#9CA3AF')
                 
                 distribution = df_real.to_dict('records')
-                
-                # Dùng st.columns để tạo thanh %
                 percentages = [d['percentage'] for d in distribution]
                 colors = [d['color'] for d in distribution]
                 
-                # Sắp xếp theo % giảm dần để thanh đẹp hơn
                 sorted_data = sorted(zip(percentages, colors, distribution), key=lambda x: x[0], reverse=True)
                 
                 bar_cols = st.columns([p for p, c, d in sorted_data])
@@ -770,7 +701,6 @@ def render_step_2():
                     with bar_cols[i]:
                         st.markdown(f"<div style='background-color:{c}; height: 20px; border-radius: 2px;' title='{d['PhanKhuc']}: {d['percentage']:.1f}%'></div>", unsafe_allow_html=True)
                 
-                # Chú thích
                 legend_cols = st.columns(len(distribution))
                 for i, (p, c, d) in enumerate(sorted_data):
                     with legend_cols[i]:
@@ -779,7 +709,6 @@ def render_step_2():
         st.divider()
         st.subheader("Dựa trên dữ liệu trên, hãy chọn một mục tiêu:")
 
-    # Render Mục tiêu (từ config_data)
     objectives = config_data["objectives"]
     cols = st.columns(len(objectives))
     for i, goal in enumerate(objectives):
@@ -790,16 +719,13 @@ def render_step_2():
                 st.button(f"Chọn mục tiêu: {goal['title']}", on_click=select_objective, args=(goal['id'], goal['title']), use_container_width=True, key=f"goal_{goal['id']}")
 
 def render_step_3():
-# ... (Giữ nguyên) ...
     st.button("⬅️ Quay lại chọn Mục tiêu", on_click=go_to_step, args=(2,))
     st.header("Bước 3: Đề xuất Phân khúc Đối tượng (The 'Who')", divider="blue")
     st.write(f"Dựa trên mục tiêu **{st.session_state.selected_objective['title']}**, hệ thống đề xuất các phân khúc sau (từ CSDL):")
     
     goal_id = st.session_state.selected_objective['id']
-    # Lấy TÊN phân khúc từ logic
     segment_names = config_data["mockDataOwned"]["segments"].get(goal_id, [])
     
-    # Lấy DỮ LIỆU THẬT của các phân khúc đó
     df_real = st.session_state.real_segment_data
     if df_real.empty:
         st.error("Không tải được dữ liệu phân khúc thật.")
@@ -811,7 +737,6 @@ def render_step_3():
         st.warning("Không tìm thấy phân khúc đề xuất trong CSDL cho mục tiêu này.")
         return
 
-    # Icon map (tùy chỉnh)
     icon_map = {
         'Khách hàng VIP': '👑',
         'Khách hàng trung thành': '💎',
@@ -834,17 +759,13 @@ def render_step_3():
             with cols[1]:
                 st.button(f"Chọn tệp {seg_name}", on_click=select_segment, args=(seg_name, seg_name), use_container_width=True, type="primary", key=f"seg_{seg_name}")
             
-            # Hiển thị thông tin chi tiết
             st.markdown(f"**Thông tin chi tiết (từ CSDL):**")
             detail_cols = st.columns(3)
             detail_cols[0].metric("Số lượng Khách hàng", f"{segment['SoLuong']} KH")
             detail_cols[1].metric("Tổng Doanh thu", format_currency(segment['TongDoanhThu']))
             detail_cols[2].metric("Doanh thu / KH", format_currency(segment['M_TB']))
 
-
 def render_step_4():
-# ... (Giữ nguyên) ...
-    # Nút Back động
     back_step = 2 if st.session_state.selected_platform == 'marketplace' else 3
     back_text = "⬅️ Quay lại Dashboard & Mục tiêu" if back_step == 2 else "⬅️ Quay lại chọn Phân khúc"
     st.button(back_text, on_click=go_to_step, args=(back_step,))
@@ -858,11 +779,7 @@ def render_step_4():
         render_step_4_marketplace()
 
 def render_step_4_owned():
-# ... (Giữ nguyên) ...
-    # ID phân khúc (chính là Tên Phân khúc)
     segment_id = st.session_state.selected_segment['id']
-    
-    # Lấy logic từ config_data
     tactics_data = config_data["mockDataOwned"]["tactics"].get(segment_id, {})
     owned_tactics = tactics_data.get('owned', [])
     recommendations = config_data["mockDataOwned"]["tacticRecommendations"].get(segment_id, [])
@@ -876,9 +793,7 @@ def render_step_4_owned():
 
     for tactic in owned_tactics:
         is_recommended = tactic['id'] in recommendations
-        container_class = "highlighted-container" if is_recommended else "default-container"
         
-        # Dùng st.container thay vì markdown HTML
         with st.container(border=is_recommended):
             if is_recommended:
                 st.markdown("**⭐ ĐỀ XUẤT**")
@@ -894,12 +809,10 @@ def render_step_4_owned():
             )
 
 def render_step_4_marketplace():
-# ... (Giữ nguyên) ...
     all_tactics = config_data["mockDataMarketplace"]["tactics"]["marketplace"]
     goal_id = st.session_state.selected_objective['id']
     df_real = st.session_state.real_segment_data
     
-    # Logic nghiệp vụ để tìm đề xuất (dựa trên dữ liệu thật)
     recommendations = []
     
     if not df_real.empty:
@@ -922,7 +835,6 @@ def render_step_4_marketplace():
         elif goal_id == 'launch':
             recommendations = ['mp_livestream', 'mp_ads', 'mp_voucher']
         else:
-            # Logic dự phòng
             if goal_id == 'revenue': recommendations = ['mp_combo', 'mp_voucher']
             elif goal_id == 'conversion': recommendations = ['mp_ads', 'mp_voucher']
             elif goal_id == 'awareness': recommendations = ['mp_flash_sale', 'mp_livestream']
@@ -948,21 +860,35 @@ def render_step_4_marketplace():
                 type="primary" if is_recommended else "secondary"
             )
 
-# --- Render Form Động cho Bước 5 ---
 def render_dynamic_form(tactic_id, tactic_type):
-# ... (Giữ nguyên) ...
     st.subheader(f"Cấu hình chi tiết: {st.session_state.selected_tactic['name']}", divider="blue")
 
-    # Sử dụng key TRỰC TIẾP trong widget
     if tactic_type == 'owned':
-        # === FORM MỚI CHO EMAIL ===
         st.multiselect("Kênh chạy", ["Email", "SMS", "Zalo OA"], default=["Email"], key="tactic-owned-channels")
         st.text_input("Tiêu đề Email", placeholder="Ưu đãi đặc biệt dành riêng cho bạn!", key="tactic-email-subject")
-        st.text_input("Link hình ảnh (Banner)", placeholder="https://cdn.example.com/banner.png", key="tactic-email-image-url")
+        
+        # THAY ĐỔI CHÍNH: Upload ảnh thay vì link
+        uploaded_file = st.file_uploader(
+            "Tải lên hình ảnh Banner", 
+            type=['png', 'jpg', 'jpeg', 'gif'],
+            key="tactic-email-image-uploader",
+            help="Chọn file ảnh từ máy tính của bạn"
+        )
+        
+        # Xử lý ảnh upload và lưu vào session state
+        if uploaded_file is not None:
+            image_base64 = image_to_base64(uploaded_file)
+            if image_base64:
+                st.session_state['tactic-email-image'] = image_base64
+                st.success("✅ Đã tải ảnh thành công!")
+                # Hiển thị preview nhỏ
+                st.image(uploaded_file, caption="Preview", width=200)
+        elif 'tactic-email-image' not in st.session_state:
+            st.session_state['tactic-email-image'] = ''
+        
         st.text_area("Nội dung tin nhắn", placeholder="Chào bạn,\n\nChúng tôi có một ưu đãi... (Bạn có thể dùng [Tên] để cá nhân hóa)", key="tactic-email-body")
         st.text_input("Tiêu đề nút bấm (CTA)", placeholder="Xem ngay!", key="tactic-email-button-text")
         st.text_input("Link nút bấm (URL)", placeholder="https://shop.com/san-pham-moi", key="tactic-email-button-url")
-        # === KẾT THÚC FORM MỚI ===
     
     elif tactic_type == 'marketplace':
         if tactic_id == 'mp_ads':
@@ -1003,28 +929,22 @@ def render_dynamic_form(tactic_id, tactic_type):
             st.info("Chiến thuật này không cần cấu hình chi tiết.")
 
 def render_step_5():
-# ... (Giữ nguyên) ...
     st.button("⬅️ Quay lại chọn Chiến thuật", on_click=go_to_step, args=(4,))
     st.header("Bước 5: Trình Dựng Chiến Dịch (Campaign Builder)", divider="blue")
     st.write("Cấu hình chi tiết cho chiến dịch của bạn. Dữ liệu sẽ được lưu vào CSDL.")
 
-    # === THAY ĐỔI QUAN TRỌNG ===
-    # Hiển thị modal demo nếu state được set
-    if st.session_state.demo_campaign_id:
+    # Hiển thị modal demo nếu được kích hoạt
+    if st.session_state.get('show_demo_modal', False):
         render_demo_modal()
 
-    # Render form động BÊN NGOÀI st.form
-    # Điều này cho phép widget cập nhật st.session_state ngay lập tức
-    # để nút "Xem Demo" có thể đọc được
     with st.container(border=True):
         render_dynamic_form(st.session_state.selected_tactic['id'], st.session_state.selected_tactic['type'])
     
     st.divider()
 
-    # st.form CHỈ chứa các trường chung và nút bấm
     with st.form(key="campaign_builder_form"):
         st.subheader("Cấu hình chung")
-        form_data = {} # Dict để thu thập dữ liệu form
+        form_data = {}
         cols = st.columns(2)
         
         form_data['campaign-name'] = cols[0].text_input(
@@ -1047,144 +967,106 @@ def render_step_5():
         
         form_data['campaign-notes'] = st.text_area("Ghi Chú Nội Bộ")
 
-        # === CÁC NÚT BẤM NGANG HÀNG ===
         cols_btn = st.columns(2)
-        
-        # Nút 1: Lưu (Nút submit của form)
         submitted = cols_btn[0].form_submit_button("Lưu Chiến dịch vào CSDL", use_container_width=True, type="primary")
-        
-        # Nút 2: Xem Demo (Nút bấm thường, không submit)
-        # Nút này được xử lý bên ngoài vòng lặp form
         demo_clicked = cols_btn[1].form_submit_button("Xem Demo Chiến dịch", use_container_width=True, type="secondary")
         
         if submitted:
-            # Thu thập dữ liệu từ các widget động (đã được gán key)
             for key in st.session_state:
                 if key.startswith('tactic-'):
                     form_data[key] = st.session_state[key]
-            
             handle_save_campaign(form_data)
-            # st.rerun() # handle_save_campaign đã xử lý
         
         if demo_clicked:
-            # Set state để mở modal demo
-            # "step_5_preview" là ID đặc biệt
-            st.session_state.demo_campaign_id = "step_5_preview" 
+            st.session_state.show_demo_modal = True
             st.rerun()
 
-
-# --- Render Dashboard View (Bước 6) ---
-
 def render_demo_modal():
-    """(HÀM ĐƯỢC CẬP NHẬT) Hiển thị modal cho demo (Step 5 và Step 6)."""
+    """Hiển thị modal demo cho chiến dịch"""
     
-    campaign_id = st.session_state.demo_campaign_id
-    if not campaign_id:
-        return
-
-    data = {} # Dict để chứa dữ liệu demo
-    
-    if campaign_id == "step_5_preview":
-        # === Lấy dữ liệu từ SESSION STATE cho Step 5 ===
-        # Lấy trực tiếp từ key của các widget
-        data['name'] = "Bản xem trước (Chưa lưu)"
-        data['objective'] = st.session_state.selected_objective.get('title', 'N/A')
-        # Tạo dynamicData giả từ session_state
+    @st.dialog("🎬 Xem Demo Chiến Dịch", width="large")
+    def show_demo_dialog():
+        # Thu thập dữ liệu từ session state
         dynamic_data = {}
         for key in st.session_state:
             if key.startswith('tactic-'):
                 dynamic_data[key] = st.session_state[key]
-        data['dynamicData'] = dynamic_data
-        data['platform'] = st.session_state.selected_platform # Lấy platform hiện tại
-    else:
-        # === Lấy dữ liệu từ CAMPAIGN OBJECT cho Step 6 ===
-        campaign = next((c for c in st.session_state.campaigns if c['id'] == campaign_id), None)
-        if not campaign:
-            st.error("Không tìm thấy chiến dịch để demo.")
-            del st.session_state.demo_campaign_id
-            return
-        data = campaign # Dùng toàn bộ object
         
-    # === SỬA LỖI TƯƠNG THÍCH: DÙNG st.modal ===
-    # st.modal không phải là context manager (with), nó trả về True nếu modal MỞ
-    # Chúng ta dùng key để nó biết modal nào đang được gọi
-    if st.modal("Xem Demo Chiến Dịch (Bản xem của Khách hàng)", key=f"demo_modal_{campaign_id}"):
-        st.header(f"{data.get('name')}")
+        data = {
+            'name': "Bản xem trước (Chưa lưu)",
+            'objective': st.session_state.selected_objective.get('title', 'N/A'),
+            'dynamicData': dynamic_data,
+            'platform': st.session_state.selected_platform
+        }
+        
+        st.header(f"📧 {data.get('name')}")
         st.subheader(f"Chủ đề: {data.get('objective')}")
         st.divider()
         
-        # Trích xuất nội dung từ dynamicData
-        dynamic_data = data.get('dynamicData', {})
-        
-        st.markdown("### Nội dung chiến dịch (Demo):")
-        
-        # === HIỂN THỊ THEO BỐ CỤC EMAIL MỚI ===
-        subject = dynamic_data.get('tactic-email-subject', '')
-        image_url = dynamic_data.get('tactic-email-image-url', '')
-        body = dynamic_data.get('tactic-email-body', '')
-        button_text = dynamic_data.get('tactic-email-button-text', '')
-        button_url = dynamic_data.get('tactic-email-button-url', '')
-        
-        # Lấy platform (cần thiết để biết render email hay marketplace)
-        platform = data.get('platform') # Lấy từ campaign đã lưu hoặc data preview
+        platform = data.get('platform')
         
         if platform == 'owned':
-            # Render bản xem trước email
-            if subject:
-                st.caption("Tiêu đề Email:")
-                st.markdown(f"**{subject}**")
-            if image_url:
-                st.caption("Banner:")
-                # Thêm xử lý lỗi nếu link ảnh không hợp lệ
-                try:
-                    st.image(image_url)
-                except Exception:
-                    st.warning(f"Không thể tải ảnh từ link: {image_url}")
-            if body:
-                st.caption("Nội dung:")
-                st.write(body.replace('\n', '\n\n'))
-            if button_text and button_url:
-                st.caption("Nút bấm (CTA):")
-                st.link_button(button_text, button_url)
+            subject = dynamic_data.get('tactic-email-subject', '')
+            image_data = dynamic_data.get('tactic-email-image', '')
+            body = dynamic_data.get('tactic-email-body', '')
+            button_text = dynamic_data.get('tactic-email-button-text', '')
+            button_url = dynamic_data.get('tactic-email-button-url', '')
+            
+            st.markdown("### 📬 Nội dung Email Demo:")
+            
+            with st.container(border=True):
+                if subject:
+                    st.markdown(f"**Tiêu đề:** {subject}")
+                    st.divider()
+                
+                if image_data:
+                    try:
+                        st.image(image_data, use_container_width=True)
+                    except Exception:
+                        st.warning("Không thể hiển thị ảnh banner")
+                
+                if body:
+                    st.markdown("**Nội dung:**")
+                    st.write(body.replace('\n', '\n\n'))
+                
+                if button_text and button_url:
+                    st.markdown("---")
+                    st.link_button(button_text, button_url, use_container_width=True, type="primary")
+                
+                st.caption("_Email này được tạo tự động từ hệ thống Campaign Manager_")
         else:
-            # Hiển thị chung cho các loại khác (Marketplace)
-            st.write("Cấu hình chi tiết (JSON):")
+            st.markdown("### ⚙️ Cấu hình chi tiết:")
             st.json(dynamic_data, expanded=True)
-        # === KẾT THÚC HIỂN THỊ MỚI ===
-
+        
         st.divider()
-        if st.button("Đóng"):
-            del st.session_state.demo_campaign_id
+        if st.button("Đóng", use_container_width=True):
+            st.session_state.show_demo_modal = False
             st.rerun()
-    # === KẾT THÚC SỬA LỖI st.modal ===
-
+    
+    show_demo_dialog()
 
 def render_dashboard_view():
-# ... (Giữ nguyên) ...
     st.header("📊 Bước 6: Quản trị Hiệu suất & Tối ưu (Dữ liệu thật)", divider="blue")
     st.write("Theo dõi hiệu suất của tất cả các chiến dịch đã lưu trong CSDL.")
         
-    # Hiển thị modal nếu có
     if 'editing_campaign_id' in st.session_state:
         render_result_modal()
     
-    # === THAY ĐỔI: Modal demo giờ được gọi từ Step 5 ===
-    # (Không cần gọi render_demo_modal() ở đây nữa)
+    if 'demo_campaign_id_dashboard' in st.session_state:
+        render_dashboard_demo_modal()
         
     campaigns = st.session_state.campaigns
     if not campaigns:
         st.info("Chưa có chiến dịch nào trong CSDL. Hãy tạo một chiến dịch mới!")
         return
 
-    # === THAY ĐỔI: Gỡ cột Demo (từ 8 về 7) ===
-    cols = st.columns([3, 2, 1, 1, 1, 1, 1])
-    headers = ["Tên Chiến Dịch", "Phân Khúc", "Ngân Sách", "Doanh Thu", "ROI", "Hành Động", "Trạng Thái"]
+    cols = st.columns([3, 2, 1, 1, 1, 1, 1, 1])
+    headers = ["Tên Chiến Dịch", "Phân Khúc", "Ngân Sách", "Doanh Thu", "ROI", "Hành Động", "Trạng Thái", "Demo"]
     for col, header in zip(cols, headers):
         col.markdown(f"**{header}**")
     
     st.divider()
 
-    # Render từng chiến dịch
     for i, campaign in enumerate(campaigns):
         budget = campaign.get('budget', 0)
         revenue = campaign.get('revenue', 0)
@@ -1199,16 +1081,12 @@ def render_dashboard_view():
             roi = "∞"
             roi_color = "green"
 
-        cols = st.columns([3, 2, 1, 1, 1, 1, 1]) # Gỡ 1 cột
+        cols = st.columns([3, 2, 1, 1, 1, 1, 1, 1])
         
-        # Cột 1: Tên
         cols[0].markdown(f"**{campaign.get('name', 'N/A')}**")
         cols[0].caption(f"{campaign.get('tactic', 'N/A')}")
         
-        # Cột 2: Phân khúc
         cols[1].write(campaign.get('segment', 'N/A'))
-        
-        # Cột 3-5: Số liệu
         cols[2].write(format_currency(budget))
         cols[3].write(format_currency(revenue))
         cols[4].markdown(f"<span style='color:{roi_color}; font-weight:bold;'>{roi}</span>", unsafe_allow_html=True)
@@ -1216,7 +1094,6 @@ def render_dashboard_view():
         campaign_id = campaign['id']
         campaign_status = campaign.get('status', 'N/A')
 
-        # Cột 6: Hành động (trước là cột 7)
         with cols[5]:
             if campaign_status == '📝 Đã lưu':
                 st.button("Kích hoạt", key=f"act_{i}", on_click=activate_campaign, args=(campaign_id,), use_container_width=True)
@@ -1225,21 +1102,82 @@ def render_dashboard_view():
             elif campaign_status == '🟡 Đã kết thúc':
                 st.button("Xem/Sửa", key=f"res_{i}", on_click=show_result_modal, args=(campaign_id,), use_container_width=True)
         
-        # Cột 7: Trạng thái (trước là cột 8)
         cols[6].write(campaign_status)
+        
+        with cols[7]:
+            if st.button("👁️", key=f"demo_{i}", help="Xem demo chiến dịch", use_container_width=True):
+                st.session_state.demo_campaign_id_dashboard = campaign_id
+                st.rerun()
         
         st.divider()
 
-# --- Xử lý Modal Nhập Kết Quả ---
+def render_dashboard_demo_modal():
+    """Modal demo cho dashboard"""
+    campaign_id = st.session_state.demo_campaign_id_dashboard
+    campaign = next((c for c in st.session_state.campaigns if c['id'] == campaign_id), None)
+    
+    if not campaign:
+        del st.session_state.demo_campaign_id_dashboard
+        return
+    
+    @st.dialog("🎬 Demo Chiến Dịch", width="large")
+    def show_dashboard_demo():
+        st.header(f"📧 {campaign.get('name')}")
+        st.subheader(f"Chủ đề: {campaign.get('objective')}")
+        st.divider()
+        
+        dynamic_data = campaign.get('dynamicData', {})
+        platform = campaign.get('platform')
+        
+        if platform == 'owned':
+            subject = dynamic_data.get('tactic-email-subject', '')
+            image_data = dynamic_data.get('tactic-email-image', '')
+            body = dynamic_data.get('tactic-email-body', '')
+            button_text = dynamic_data.get('tactic-email-button-text', '')
+            button_url = dynamic_data.get('tactic-email-button-url', '')
+            
+            st.markdown("### 📬 Nội dung Email:")
+            
+            with st.container(border=True):
+                if subject:
+                    st.markdown(f"**Tiêu đề:** {subject}")
+                    st.divider()
+                
+                if image_data:
+                    try:
+                        st.image(image_data, use_container_width=True)
+                    except Exception:
+                        st.warning("Không thể hiển thị ảnh banner")
+                
+                if body:
+                    st.markdown("**Nội dung:**")
+                    st.write(body.replace('\n', '\n\n'))
+                
+                if button_text and button_url:
+                    st.markdown("---")
+                    st.link_button(button_text, button_url, use_container_width=True, type="primary")
+                
+                st.caption("_Email này được gửi đến khách hàng từ hệ thống_")
+        else:
+            st.markdown("### ⚙️ Cấu hình chi tiết:")
+            st.json(dynamic_data, expanded=True)
+        
+        st.divider()
+        if st.button("Đóng", use_container_width=True):
+            del st.session_state.demo_campaign_id_dashboard
+            st.rerun()
+    
+    show_dashboard_demo()
+
 def render_result_modal():
+    """Modal nhập kết quả chiến dịch"""
     if 'editing_campaign_id' in st.session_state:
         campaign_id = st.session_state.editing_campaign_id
         campaign = next((c for c in st.session_state.campaigns if c['id'] == campaign_id), None)
         
         if campaign:
-            # === SỬA LỖI TƯƠNG THÍCH: DÙNG st.modal ===
-            if st.modal("Nhập Kết Quả Thực Tế", key=f"result_modal_{campaign_id}"):
-            # === KẾT THÚC SỬA LỖI ===
+            @st.dialog("💰 Nhập Kết Quả Thực Tế", width="medium")
+            def show_result_dialog():
                 st.write(f"Nhập doanh thu thực tế thu về từ chiến dịch **{campaign['name']}** để hệ thống tính toán ROI.")
                 
                 revenue = st.number_input(
@@ -1250,31 +1188,25 @@ def render_result_modal():
                     key=f"revenue_input_{campaign_id}"
                 )
                 
-                if st.button("Lưu Kết Quả", type="primary"):
+                cols = st.columns(2)
+                if cols[0].button("Lưu Kết Quả", type="primary", use_container_width=True):
                     save_campaign_result(campaign_id, revenue)
-                if st.button("Hủy bỏ"):
+                if cols[1].button("Hủy bỏ", use_container_width=True):
                     del st.session_state.editing_campaign_id
                     st.rerun()
+            
+            show_result_dialog()
 
-# --- HÀM MAIN ĐIỀU HƯỚNG ỨNG DỤNG ---
 def show():
-# ... (Giữ nguyên) ...
     """Hàm này được gọi bởi app.py"""
-    
-    # Khởi tạo CSDL (nếu bảng chưa tồn tại)
     init_campaign_db()
-    
-    # Khởi tạo state (sẽ tải campaigns từ CSDL)
     init_state()
-    
-    # Render UI chính
     render_header_and_nav()
     
     if st.session_state.view == 'wizard':
         render_stepper()
         st.divider()
         
-        # "Router" cho các bước
         step = st.session_state.current_step
         if step == 1:
             render_step_1()
@@ -1288,15 +1220,11 @@ def show():
             render_step_5()
             
     elif st.session_state.view == 'dashboard':
-        # Tự động nhảy stepper sang bước 6
         st.session_state.current_step = 6
         render_stepper()
         st.divider()
         render_dashboard_view()
 
-# Mã này chỉ chạy khi file được gọi trực tiếp (để test)
 if __name__ == "__main__":
-# ... (Giữ nguyên) ...
     st.set_page_config(layout="wide", page_title="Test Module Chiến dịch")
     show()
-

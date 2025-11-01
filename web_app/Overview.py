@@ -15,7 +15,7 @@ def show():
                 padding: 0;
                 overflow: hidden;
                 height: 100%;
-                background-color: #0f1b2b;
+                # background-color: #0f1b2b;
             }
             iframe {
                 width: 100vw;

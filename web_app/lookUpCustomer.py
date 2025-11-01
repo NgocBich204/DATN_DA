@@ -6,6 +6,7 @@ import numpy as np
 import math 
 
 # --- CẤU HÌNH KẾT NỐI SQL SERVER ---
+# (Giữ nguyên)
 odbc_driver = "ODBC Driver 17 for SQL Server"
 server = "localhost\\SQLEXPRESS"
 database = "test6"
@@ -22,11 +23,7 @@ conn_str = (
 )
 
 # --- CẤU HÌNH TRANG ---
-st.set_page_config(
-    page_title="Tra cứu khách hàng 360°",
-    layout="wide",
-    page_icon="👤"
-)
+# (Giữ nguyên)
 
 # Hàm định dạng tiền tệ (Helper)
 def format_currency(value):
@@ -97,8 +94,8 @@ def load_customer_data_from_db():
         df['total_orders'] = df['TotalOrders'].fillna(0).astype(int)
         df['total_spend'] = df['TotalSpend'].fillna(0)
         df['avg_order_value'] = np.where(df['total_orders'] > 0, 
-                                          df['total_spend'] / df['total_orders'], 
-                                          0)
+                                         df['total_spend'] / df['total_orders'], 
+                                         0)
         
         df['total_spend_str'] = df['total_spend'].apply(format_currency)
         df['avg_order_value_str'] = df['avg_order_value'].apply(format_currency)
@@ -167,21 +164,32 @@ def load_customer_data_from_db():
 
 # Tải dữ liệu
 CUSTOMER_DATA, ORDER_HISTORY_DATA = load_customer_data_from_db()
-CUSTOMER_LIST = CUSTOMER_DATA.to_dict('records')
 
 
 # --- TRẠNG THÁI ỨNG DỤNG (SESSION STATE) ---
-if 'view' not in st.session_state:
-    st.session_state.view = 'list' 
-if 'selected_customer_id' not in st.session_state:
-    st.session_state.selected_customer_id = None
-if 'search_term' not in st.session_state:
-    st.session_state.search_term = ""
-if 'page' not in st.session_state:
-    st.session_state.page = 0 
+# app.py sẽ quản lý 'view', 'selected_customer_id', và 'search_term'
+if 'lookup_page' not in st.session_state:
+    st.session_state.lookup_page = 0 
+
+# ✅ (ĐÃ SỬA) Thêm state cho TẤT CẢ các bộ lọc để chúng không bị reset khi phân trang
+default_from_date = datetime.date(2021, 1, 1)
+default_to_date = datetime.date.today()
+
+if 'filter_from_date' not in st.session_state:
+    st.session_state.filter_from_date = default_from_date
+if 'filter_to_date' not in st.session_state:
+    st.session_state.filter_to_date = default_to_date
+if 'filter_region' not in st.session_state:
+    st.session_state.filter_region = "Tất cả"
+if 'filter_channel' not in st.session_state:
+    st.session_state.filter_channel = "Tất cả"
+if 'filter_group' not in st.session_state:
+    st.session_state.filter_group = "Tất cả"
+
 
 # --- HÀM HỖ TRỢ (HELPER FUNCTIONS) ---
 def get_badge_markdown(text_value):
+    # (Giữ nguyên)
     """
     Gán màu sắc cho cả Nhóm KH (Phân khúc) và Tình trạng (Status)
     Ưu tiên màu sắc nổi bật cho Phân khúc RFM và Tình trạng quan trọng.
@@ -234,8 +242,7 @@ def filter_customers(search_term, from_date, to_date, region, channel, group):
         df = df[df['group'] == group]
 
     # Lọc theo ngày đăng ký (NgaySinh) - Tối ưu hóa: BỎ QUA lọc nếu là ngày mặc định
-    default_from_date = datetime.date(2021, 1, 1)
-    default_to_date = datetime.date.today()
+    global default_from_date, default_to_date # Sử dụng biến toàn cục
     
     is_date_filtered = (from_date != default_from_date) or (to_date != default_to_date)
 
@@ -254,8 +261,8 @@ def filter_customers(search_term, from_date, to_date, region, channel, group):
         except Exception as e:
             pass 
             
-    # QUAN TRỌNG: Khi dữ liệu bị lọc, reset trang về 0
-    st.session_state.page = 0
+    # 🛑 (ĐÃ XÓA) QUAN TRỌNG: Bỏ dòng này đi. Đây là NGUYÊN NHÂN gây lỗi phân trang.
+    # st.session_state.lookup_page = 0
 
     return df.to_dict('records')
 
@@ -263,66 +270,115 @@ def filter_customers(search_term, from_date, to_date, region, channel, group):
 def show_list_view():
     """Vẽ Màn hình 1: Danh sách tra cứu"""
     
+    if CUSTOMER_DATA.empty:
+        st.warning("Không có dữ liệu khách hàng. Vui lòng kiểm tra kết nối CSDL và đảm bảo file ETL.py đã chạy thành công.")
+        return
+
     # --- Form Lọc và Kết quả Lọc ---
-    cols = st.columns([3, 2], vertical_alignment="bottom") 
-    with cols[0]:
-        st.title("Tra cứu khách hàng 360°")
-    with cols[1]:
-        st.session_state.search_term = st.text_input(
-            "Tìm kiếm",
-            placeholder="Nhập tên, SĐT hoặc email...",
-            label_visibility="collapsed",
-            value=st.session_state.search_term
-        ) 
+    
+    # 🛑 (ĐÃ XÓA) Di chuyển Title và Text Input vào BÊN TRONG form
+    # cols = st.columns([3, 2], vertical_alignment="bottom") 
+    # with cols[0]:
+    #     st.title("Tra cứu khách hàng 360°")
+    # with cols[1]:
+    #     st.session_state.search_term = st.text_input( ... ) 
     
     # Form Lọc
     with st.expander("Bộ lọc", expanded=True):
         with st.form("filter_form"):
+            
+            # ✅ (ĐÃ SỬA) Đưa Title và Search Bar vào ĐÂY
+            cols = st.columns([3, 2], vertical_alignment="bottom")
+            with cols[0]:
+                st.title("Tra cứu khách hàng 360°")
+            with cols[1]:
+                # Dùng biến local _input để nhận giá trị
+                search_term_input = st.text_input(
+                    "Tìm kiếm",
+                    placeholder="Nhập tên, SĐT hoặc email...",
+                    label_visibility="collapsed",
+                    value=st.session_state.search_term # Lấy giá trị từ state
+                )
+
             cols = st.columns(7, vertical_alignment="bottom") 
             
+            global default_from_date, default_to_date
+            
             with cols[0]:
-                from_date = st.date_input("Từ ngày", datetime.date(2021, 1, 1)) 
+                # ✅ (ĐÃ SỬA) Dùng biến local và lấy value từ state
+                from_date_input = st.date_input("Từ ngày", value=st.session_state.filter_from_date) 
             with cols[1]:
-                to_date = st.date_input("Đến ngày", datetime.date.today())
+                to_date_input = st.date_input("Đến ngày", value=st.session_state.filter_to_date)
             with cols[2]:
                 unique_regions = ["Tất cả"] + list(CUSTOMER_DATA["region"].unique())
-                selected_region = st.selectbox("Khu Vực", unique_regions)
+                # ✅ (ĐÃ SỬA) Tìm index của state để set giá trị mặc định cho selectbox
+                region_index = unique_regions.index(st.session_state.filter_region) if st.session_state.filter_region in unique_regions else 0
+                selected_region_input = st.selectbox("Khu Vực", unique_regions, index=region_index)
             with cols[3]:
                 unique_channels = ["Tất cả"] + list(CUSTOMER_DATA["fav_channel"].unique())
-                selected_channel = st.selectbox("Kênh Mua Hàng", unique_channels)
+                channel_index = unique_channels.index(st.session_state.filter_channel) if st.session_state.filter_channel in unique_channels else 0
+                selected_channel_input = st.selectbox("Kênh Mua Hàng", unique_channels, index=channel_index)
             with cols[4]:
                 unique_groups = ["Tất cả"] + list(CUSTOMER_DATA["group"].unique())
-                selected_group = st.selectbox("Nhóm KH", unique_groups)
+                group_index = unique_groups.index(st.session_state.filter_group) if st.session_state.filter_group in unique_groups else 0
+                selected_group_input = st.selectbox("Nhóm KH", unique_groups, index=group_index)
             
             with cols[5]:
-                if st.form_submit_button("Xóa bộ lọc", use_container_width=True):
-                    st.session_state.search_term = ""
-                    st.session_state.page = 0 
-                    st.rerun() 
+                reset_pressed = st.form_submit_button("Xóa bộ lọc", use_container_width=True)
             with cols[6]:
-                st.form_submit_button("Áp dụng ", type="primary", use_container_width=True)
+                apply_pressed = st.form_submit_button("Áp dụng ", type="primary", use_container_width=True)
+
+            # ✅ (ĐÃ SỬA) Xử lý logic submit form
+            if apply_pressed:
+                # Cập nhật TOÀN BỘ state từ các giá trị _input
+                st.session_state.search_term = search_term_input
+                st.session_state.filter_from_date = from_date_input
+                st.session_state.filter_to_date = to_date_input
+                st.session_state.filter_region = selected_region_input
+                st.session_state.filter_channel = selected_channel_input
+                st.session_state.filter_group = selected_group_input
+                # Reset trang về 0 CHỈ KHI LỌC
+                st.session_state.lookup_page = 0
+                st.rerun() # Tải lại trang để áp dụng state mới
+
+            if reset_pressed:
+                # Reset TOÀN BỘ state
+                st.session_state.search_term = ""
+                st.session_state.filter_from_date = default_from_date
+                st.session_state.filter_to_date = default_to_date
+                st.session_state.filter_region = "Tất cả"
+                st.session_state.filter_channel = "Tất cả"
+                st.session_state.filter_group = "Tất cả"
+                st.session_state.lookup_page = 0
+                st.rerun() # Tải lại trang để reset
             
-            filtered_customers = filter_customers(
-                st.session_state.search_term, 
-                from_date, 
-                to_date, 
-                selected_region, 
-                selected_channel, 
-                selected_group
-            )
+            # 🛑 (ĐÃ XÓA) Không gọi hàm filter ở đây
+            # filtered_customers = filter_customers(...)
+
+    # ✅ (ĐÃ SỬA) Gọi hàm filter Ở NGOÀI FORM, dùng 100% giá trị từ session_state
+    # Điều này đảm bảo bộ lọc được giữ nguyên khi bạn phân trang
+    filtered_customers = filter_customers(
+        st.session_state.search_term, 
+        st.session_state.filter_from_date, 
+        st.session_state.filter_to_date, 
+        st.session_state.filter_region, 
+        st.session_state.filter_channel, 
+        st.session_state.filter_group
+    )
 
     st.divider()
     
     # --- PHÂN TRANG (PAGINATION) ---
+    # (Phần này giữ nguyên, bây giờ nó sẽ hoạt động đúng)
     ITEMS_PER_PAGE = 20
     total_items = len(filtered_customers)
     total_pages = math.ceil(total_items / ITEMS_PER_PAGE)
     
-    current_page = st.session_state.page
+    current_page = st.session_state.lookup_page 
     
     if current_page >= total_pages:
         current_page = total_pages - 1 if total_pages > 0 else 0
-        st.session_state.page = current_page
+        st.session_state.lookup_page = current_page
     
     start_idx = current_page * ITEMS_PER_PAGE
     end_idx = start_idx + ITEMS_PER_PAGE
@@ -359,32 +415,27 @@ def show_list_view():
                 st.rerun()
 
     st.divider()
-    
-    # Thanh điều khiển phân trang
+
     cols_nav = st.columns([1, 1, 4, 1, 1])
     
     if cols_nav[0].button("⬅️ Trang trước", disabled=(current_page == 0)):
-        st.session_state.page -= 1
+        st.session_state.lookup_page -= 1
         st.rerun()
         
     if cols_nav[4].button("Trang sau ➡️", disabled=(current_page >= total_pages - 1)):
-        st.session_state.page += 1
-        st.rerun()
-        
+        st.session_state.lookup_page += 1 
+        st.rerun() 
+         
     start_display = start_idx + 1
-    end_display = min(end_idx, total_items)
-    
+    end_display = min(end_idx, total_items) 
     if total_items > 0:
         cols_nav[2].write(f"Đang hiển thị **{start_display}** đến **{end_display}** (Trang **{current_page + 1}** / **{total_pages}**)")
     else:
         cols_nav[2].write("Không có khách hàng nào.")
-    
     st.text(f"Tổng cộng {len(CUSTOMER_DATA)} khách hàng trong CSDL")
 
-
 def show_detail_view():
-    """Vẽ Màn hình 2: Chi tiết khách hàng"""
-    
+    # (Hàm này giữ nguyên, không cần sửa)
     customer_id = st.session_state.selected_customer_id
     try:
         customer_df = CUSTOMER_DATA[CUSTOMER_DATA['id'] == customer_id].iloc[0]
@@ -436,8 +487,8 @@ def show_detail_view():
         with cols[2]:
             st.markdown(f"**Ngày Đăng Ký:** {customer['registered']}")
             st.markdown(f"**Khu Vực:** {customer['region']}")
-            st.markdown(f"** Loại:** {get_badge_markdown(customer['status'])}") # SỬ DỤNG TÌNH TRẠNG MỚI
-            st.markdown(f"**Nhóm Khách Hàng:** {get_badge_markdown(customer['group'])}") # Dùng group (Phân khúc RFM)
+            st.markdown(f"**Ghi chú:** {get_badge_markdown(customer['status'])}") 
+            st.markdown(f"**Nhóm Khách Hàng:** {get_badge_markdown(customer['group'])}") 
 
     # Card 1.1: Tóm tắt RFM
     with st.container(border=True):
@@ -451,9 +502,7 @@ def show_detail_view():
         cols[1].metric("Frequency (Lần mua)", f"{f_val:.0f}" if isinstance(f_val, (int, float)) else "N/A")
         cols[2].metric("Monetary (Chi tiêu)", f"{m_val:,.0f} ₫".replace(",", ".") if isinstance(m_val, (int, float)) else "N/A")
 
-    st.write("") # Thêm khoảng trắng
-
-    # Card 2: Lịch Sử Đơn Hàng
+    st.write("") 
     with st.container(border=True):
         st.subheader(f"🕒 Lịch Sử Đơn Hàng (Tổng: {len(order_history)} đơn)")
         if order_history.empty:
@@ -468,22 +517,13 @@ def show_detail_view():
         st.subheader("💬 Ghi Chú & Lịch Sử Tương Tác")
         
         st.success("**21/10/2025 09:30 - Hỗ trợ (Email)**\n"
-                   "\nKhách hàng hỏi về chính sách đổi trả. Đã gửi email xác nhận.")
+                     "\nKhách hàng hỏi về chính sách đổi trả. Đã gửi email xác nhận.")
         st.error("**18/10/2025 14:15 - Sales (Gọi điện)**\n"
-                 "\nGọi điện thoại tư vấn SP mới nhưng khách hàng báo bận, hẹn gọi lại sau.")
+                    "\nGọi điện thoại tư vấn SP mới nhưng khách hàng báo bận, hẹn gọi lại sau.")
         st.info("**15/09/2025 11:00 - Cửa hàng**\n"
-                "\nKhách hàng đến mua trực tiếp, rất hài lòng với chất lượng vải.")
+                     "\nKhách hàng đến mua trực tiếp, rất hài lòng với chất lượng vải.")
         
         st.divider()
         
         st.text_area("Thêm ghi chú nội bộ mới...", height=100)
         st.button("Lưu Ghi Chú", type="primary")
-
-# --- LUỒNG CHẠY CHÍNH ---
-if not CUSTOMER_DATA.empty:
-    if st.session_state.view == 'list':
-        show_list_view()
-    elif st.session_state.view == 'detail':
-        show_detail_view()
-else:
-    st.warning("Không có dữ liệu khách hàng. Vui lòng kiểm tra kết nối CSDL và đảm bảo file ETL.py đã chạy thành công.")
