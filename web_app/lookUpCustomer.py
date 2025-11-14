@@ -20,19 +20,16 @@ conn_str = (
     f"Encrypt={encrypt};"
     f"TrustServerCertificate={trust_server_certificate};"
 )
-
 # Hàm định dạng tiền tệ (Helper)
 def format_currency(value):
     if pd.isna(value): return "0 ₫"
     return f"{value:,.0f} ₫".replace(",", ".")
-
 # --- CACHING DỮ LIỆU TỪ DB (TỐI ƯU HÓA TỐC ĐỘ TẢI) ---
 @st.cache_data(ttl=600)
 def load_customer_data_from_db():
     """Load dữ liệu Khách hàng, RFM, Phân khúc và Lịch sử đơn hàng từ SQL Server."""
     try:
-        conn = pyodbc.connect(conn_str)
-        
+        conn = pyodbc.connect(conn_str)  
         # 1. Lấy thông tin cơ bản và phân khúc (DimKhachHang + Customer_Segmentation)
         query_customers = """
         SELECT
@@ -155,18 +152,10 @@ def load_customer_data_from_db():
         else:
              st.error(f"Lỗi truy vấn CSDL: {error_msg}")
         return pd.DataFrame(), pd.DataFrame() 
-
 # Tải dữ liệu
 CUSTOMER_DATA, ORDER_HISTORY_DATA = load_customer_data_from_db()
-
-
-# --- ✅ KHỞI TẠO SESSION STATE (FALLBACK - Phòng trường hợp chưa init trong app.py) ---
-# Giá trị mặc định
 default_from_date = datetime.date(2021, 1, 1)
 default_to_date = datetime.date.today()
-
-# QUAN TRỌNG: Khởi tạo TẤT CẢ session state cần thiết NGAY TẠI ĐÂY
-# Điều này đảm bảo rằng các biến luôn tồn tại trước khi được sử dụng trong UI
 if 'lookup_page' not in st.session_state:
     st.session_state.lookup_page = 0
 
@@ -187,8 +176,6 @@ if 'filter_channel' not in st.session_state:
 
 if 'filter_group' not in st.session_state:
     st.session_state.filter_group = "Tất cả"
-
-
 # --- HÀM HỖ TRỢ (HELPER FUNCTIONS) ---
 def get_badge_markdown(text_value):
     """
@@ -212,20 +199,16 @@ def get_badge_markdown(text_value):
         return f":red[**{text_value}**]"
     else:
         return f"**{text_value}**"
-
-
 def filter_customers(search_term, from_date, to_date, region, channel, group):
     """Lọc danh sách khách hàng theo các tiêu chí"""
     df = CUSTOMER_DATA.copy()
-    
     # Lọc tìm kiếm
     if search_term:
         df = df[
             df['name'].str.contains(search_term, case=False, na=False) |
             df['phone'].str.contains(search_term, case=False, na=False) |
             df['email'].str.contains(search_term, case=False, na=False)
-        ]
-        
+        ] 
     # Lọc theo Khu vực
     if region != "Tất cả":
         df = df[df['region'] == region]
@@ -285,6 +268,23 @@ def show_list_view():
             st.session_state.lookup_page = 0  # Reset trang khi search
     
     # --- FORM LỌC ---
+        from datetime import datetime, timedelta
+        
+        # Khởi tạo tất cả session_state
+        if 'filter_from_date' not in st.session_state:
+            st.session_state.filter_from_date = datetime.now().date() - timedelta(days=365)
+        
+        if 'filter_to_date' not in st.session_state:
+            st.session_state.filter_to_date = datetime.now().date()
+        
+        if 'filter_region' not in st.session_state:
+            st.session_state.filter_region = "Tất cả"
+        
+        if 'filter_channel' not in st.session_state:
+            st.session_state.filter_channel = "Tất cả"
+        
+        if 'filter_group' not in st.session_state:
+            st.session_state.filter_group = "Tất cả"    
     with st.expander("Bộ lọc", expanded=True):
         with st.form("filter_form"):
             cols = st.columns(7, vertical_alignment="bottom") 
