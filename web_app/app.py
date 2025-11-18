@@ -3,27 +3,32 @@ import Overview
 import lookUpCustomer
 import Campaign
 import import_data
-import home  
+import home
+
 
 def init_session_state():
     defaults = {
-        "page": "Home", 
+        "page": "Home",
         "view": "list",
         "selected_customer_id": None,
         "search_term": "",
         "sidebar_collapsed": False,
-        "show_animation": True
+        "show_animation": True,
+        "lookup_page": 1,
+        "lookup_search_term": "",
+        "lookup_view_mode": "list",
     }
     for k, v in defaults.items():
         if k not in st.session_state:
             st.session_state[k] = v
+
 
 def apply_custom_css():
     """
     CSS tùy chỉnh với thiết kế hiện đại và sidebar có thể toggle
     """
     sidebar_width = "80px" if st.session_state.sidebar_collapsed else "280px"
-    
+
     st.markdown(f"""
         <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
@@ -237,6 +242,7 @@ def apply_custom_css():
         </style>
         """, unsafe_allow_html=True)
 
+
 # Cấu hình trang
 st.set_page_config(
     page_title="CRM Module - Hệ thống quản lý khách hàng",
@@ -260,9 +266,9 @@ with st.sidebar:
         if st.button(toggle_label, key="toggle_sidebar", help="Thu gọn/Mở rộng menu"):
             st.session_state.sidebar_collapsed = not st.session_state.sidebar_collapsed
             st.rerun()
-    
+
     st.markdown("---")
-    
+
     # Logo và tên app
     if not st.session_state.sidebar_collapsed:
         st.markdown(
@@ -279,7 +285,7 @@ with st.sidebar:
                     Quản lý khách hàng thông minh
                 </div>
             </div>
-            """, 
+            """,
             unsafe_allow_html=True
         )
     else:
@@ -292,10 +298,10 @@ with st.sidebar:
                     <span style='font-size: 1.5rem;'>📊</span>
                 </div>
             </div>
-            """, 
+            """,
             unsafe_allow_html=True
         )
-    
+
     # Navigation buttons với icons
     nav_items = [
         {"name": "Home", "icon": "🏠", "label": "Trang chủ"},
@@ -304,19 +310,21 @@ with st.sidebar:
         {"name": "Chiến dịch", "icon": "🎯", "label": "Chiến dịch"},
         {"name": "Import", "icon": "📥", "label": "Import dữ liệu"},
     ]
-    
+
     for item in nav_items:
-        btn_text = item["icon"] if st.session_state.sidebar_collapsed else f"{item['icon']} {item['label']}"
+        btn_text = item[
+            "icon"] if st.session_state.sidebar_collapsed else f"{item['icon']} {item['label']}"
         if st.button(
-            btn_text, 
+            btn_text,
             use_container_width=True,
-            type=("primary" if st.session_state.page == item["name"] else "secondary"),
+            type=("primary" if st.session_state.page ==
+                  item["name"] else "secondary"),
             key=f"nav_{item['name'].lower().replace(' ', '_')}"
         ):
             st.session_state.page = item["name"]
             st.session_state.show_animation = True
             st.rerun()
-    
+
     # Footer trong sidebar
     if not st.session_state.sidebar_collapsed:
         st.markdown("---")

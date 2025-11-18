@@ -1,3 +1,4 @@
+import seaborn as sns
 import pandas as pd
 import pyodbc
 import os
@@ -10,7 +11,7 @@ import numpy as np
 # --- Cấu hình kết nối SQL Server ---
 odbc_driver = "ODBC Driver 17 for SQL Server"
 server = "localhost\\SQLEXPRESS"
-database = "test6"
+database = "crm_ctm"
 auth = "windows"
 encrypt = "yes"
 trust_server_certificate = "yes"
@@ -47,12 +48,14 @@ df["Gio"] = df["NgayMua"].dt.hour.fillna(0).astype(int)
 
 df = df.dropna(subset=['NgaySinh', 'NgayMua'])
 
-required_columns = ['HoTen', 'Email', 'SDT', 'SKU', 'DonHang', 'SoLuong', 'DoanhThu']
+required_columns = ['HoTen', 'Email', 'SDT',
+                    'SKU', 'DonHang', 'SoLuong', 'DoanhThu']
 df = df.dropna(subset=required_columns)
 
 df['SoLuong'] = pd.to_numeric(df['SoLuong'], errors='coerce')
 df['DoanhThu'] = pd.to_numeric(df['DoanhThu'], errors='coerce')
-df['TienKhuyenMai'] = pd.to_numeric(df['TienKhuyenMai'], errors='coerce').fillna(0)
+df['TienKhuyenMai'] = pd.to_numeric(
+    df['TienKhuyenMai'], errors='coerce').fillna(0)
 df['VanChuyen'] = pd.to_numeric(df['VanChuyen'], errors='coerce').fillna(0)
 df['DoanhThuThuan'] = pd.to_numeric(df['DoanhThuThuan'], errors='coerce')
 df = df.dropna(subset=['SoLuong', 'DoanhThu', 'DoanhThuThuan'])
@@ -98,12 +101,14 @@ for idx, row in df.iterrows():
         VanChuyen, DoanhThuThuan
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """,
-    row.HoTen, row.Email, row.SDT, row.GioiTinh, row.NgaySinh.date(),
-    row.DonHang, row.NgayMua, row.Traffic, row.TinhThanh, row.QuanHuyen,
-    row.TenSanPham, row.TenNhomSanPham, row.SKU, row.PhienBan,
-    row.NhaSanXuat, row.PhuongThucTT, int(row.SoLuong), float(row.DoanhThu),
-    float(row.TienKhuyenMai), float(row.VanChuyen), float(row.DoanhThuThuan)
-    )
+                   row.HoTen, row.Email, row.SDT, row.GioiTinh, row.NgaySinh.date(),
+                   row.DonHang, row.NgayMua, row.Traffic, row.TinhThanh, row.QuanHuyen,
+                   row.TenSanPham, row.TenNhomSanPham, row.SKU, row.PhienBan,
+                   row.NhaSanXuat, row.PhuongThucTT, int(
+                       row.SoLuong), float(row.DoanhThu),
+                   float(row.TienKhuyenMai), float(
+                       row.VanChuyen), float(row.DoanhThuThuan)
+                   )
 conn.commit()
 
 # --- Tạo bảng Dimension & Fact ---
@@ -258,7 +263,8 @@ JOIN dbo.DimDate d ON f.DateID = d.DateID
 df_rfm = pd.read_sql(query, conn)
 
 # Xử lý dữ liệu ngày
-df_rfm["Ngay"] = pd.to_datetime(df_rfm["Ngay"], errors="coerce").fillna(pd.Timestamp("2021-04-04"))
+df_rfm["Ngay"] = pd.to_datetime(
+    df_rfm["Ngay"], errors="coerce").fillna(pd.Timestamp("2021-04-04"))
 
 # --- Bước 3: Tính RFM ---
 ngay_tham_chieu = df_rfm["Ngay"].max() + pd.Timedelta(days=1)
@@ -270,11 +276,13 @@ df_rfm_grouped = df_rfm.groupby("KhachHangID").agg(
     TongTien=("DoanhThuThuan", "sum")
 ).reset_index()
 
-df_rfm_grouped["Recency"] = (ngay_tham_chieu - df_rfm_grouped["NgayMuaGanNhat"]).dt.days
+df_rfm_grouped["Recency"] = (
+    ngay_tham_chieu - df_rfm_grouped["NgayMuaGanNhat"]).dt.days
 df_rfm_grouped["Frequency"] = df_rfm_grouped["SoLanMua"]
 df_rfm_grouped["Monetary"] = df_rfm_grouped["TongTien"]
 
-df_rfm_final = df_rfm_grouped[["KhachHangID", "Recency", "Frequency", "Monetary"]].copy()
+df_rfm_final = df_rfm_grouped[["KhachHangID",
+                               "Recency", "Frequency", "Monetary"]].copy()
 # --------------------------------------------------------------
 # --- Bước 4: Lưu RFM vào database ---
 cursor.execute("""
@@ -344,17 +352,20 @@ for k, score in zip(K_range, sil_scores):
     print(f"K={k}, Silhouette Score={score:.3f}")
 
 # --- Tự động tìm điểm khuỷu tay bằng phương pháp Knee ---
+
+
 def tim_diem_khuyu_tay_kneedle(K_range, sse):
     # Chuẩn hóa dữ liệu
     k_norm = (np.array(K_range) - min(K_range)) / (max(K_range) - min(K_range))
     sse_norm = (np.array(sse) - min(sse)) / (max(sse) - min(sse))
-    
+
     x1, y1 = k_norm[0], sse_norm[0]
     x2, y2 = k_norm[-1], sse_norm[-1]
     khoang_cach = []
     for i in range(len(k_norm)):
         x0, y0 = k_norm[i], sse_norm[i]
-        d = abs((y2-y1)*x0 - (x2-x1)*y0 + x2*y1 - y2*x1) / np.sqrt((y2-y1)**2 + (x2-x1)**2)
+        d = abs((y2-y1)*x0 - (x2-x1)*y0 + x2*y1 - y2*x1) / \
+            np.sqrt((y2-y1)**2 + (x2-x1)**2)
         khoang_cach.append(d)
     elbow_idx = np.argmax(khoang_cach)
     return K_range[elbow_idx], khoang_cach
@@ -377,9 +388,10 @@ plt.figure(figsize=(10, 5))
 
 plt.subplot(1, 2, 1)
 plt.plot(K_range, sse, marker="o", linewidth=2, markersize=8)
-plt.plot([K_range[0], K_range[-1]], [sse[0], sse[-1]], 'r--', linewidth=1, alpha=0.5, label='Đường thẳng tham chiếu')
-plt.scatter([optimal_k], [sse[list(K_range).index(optimal_k)]], 
-            color='red', s=300, zorder=5, marker='*', 
+plt.plot([K_range[0], K_range[-1]], [sse[0], sse[-1]], 'r--',
+         linewidth=1, alpha=0.5, label='Đường thẳng tham chiếu')
+plt.scatter([optimal_k], [sse[list(K_range).index(optimal_k)]],
+            color='red', s=300, zorder=5, marker='*',
             label=f'Điểm khuỷu tay: K={optimal_k}', edgecolors='black', linewidths=2)
 plt.xlabel("Số cụm K", fontsize=12)
 plt.ylabel("SSE (Sum of Squared Errors)", fontsize=12)
@@ -389,11 +401,12 @@ plt.grid(True, alpha=0.3)
 
 plt.subplot(1, 2, 2)
 plt.bar(K_range, distances, color='skyblue', edgecolor='black')
-plt.bar([optimal_k], [distances[list(K_range).index(optimal_k)]], 
+plt.bar([optimal_k], [distances[list(K_range).index(optimal_k)]],
         color='red', edgecolor='black', label=f'K tối ưu = {optimal_k}')
 plt.xlabel("Số cụm K", fontsize=12)
 plt.ylabel("Khoảng cách đến đường thẳng", fontsize=12)
-plt.title("Khoảng cách từ các điểm đến đường thẳng", fontsize=14, fontweight='bold')
+plt.title("Khoảng cách từ các điểm đến đường thẳng",
+          fontsize=14, fontweight='bold')
 plt.legend(fontsize=10)
 plt.grid(True, alpha=0.3, axis='y')
 
@@ -413,7 +426,8 @@ print(f"\n📊 Đã phân thành {optimal_k} cụm")
 print(df_rfm_final.head(10))
 # ------------------------------------------------------------------
 # --- Bước 8: Tự động gán tên phân khúc ---
-cluster_summary = df_rfm_final.groupby("Cluster")[["Recency", "Frequency", "Monetary"]].mean()
+cluster_summary = df_rfm_final.groupby(
+    "Cluster")[["Recency", "Frequency", "Monetary"]].mean()
 
 r_max = cluster_summary['Recency'].max()
 f_max = cluster_summary['Frequency'].max()
@@ -423,28 +437,36 @@ cluster_summary['R_Score'] = 1 - (cluster_summary['Recency'] / r_max)
 cluster_summary['F_Score'] = cluster_summary['Frequency'] / f_max
 cluster_summary['M_Score'] = cluster_summary['Monetary'] / m_max
 
-cluster_summary['RFM_Score'] = (cluster_summary['R_Score'] + cluster_summary['F_Score'] + cluster_summary['M_Score']) / 3
+cluster_summary['RFM_Score'] = (
+    cluster_summary['R_Score'] + cluster_summary['F_Score'] + cluster_summary['M_Score']) / 3
 
 cluster_ranking = cluster_summary.sort_values('RFM_Score', ascending=False)
+
 
 def tu_dong_gan_phan_khuc(optimal_k, cluster_ranking):
     if optimal_k == 2:
         ten_phan_khuc = ["Khách hàng tốt", "Khách hàng yếu"]
     elif optimal_k == 3:
-        ten_phan_khuc = ["Khách hàng VIP", "Khách hàng trung bình", "Khách hàng yếu"]
+        ten_phan_khuc = ["Khách hàng VIP",
+                         "Khách hàng trung bình", "Khách hàng yếu"]
     elif optimal_k == 4:
-        ten_phan_khuc = ["Khách hàng VIP", "Khách hàng trung thành", "Khách hàng tiềm năng", "Khách hàng có nguy cơ mất"]
+        ten_phan_khuc = ["Khách hàng VIP", "Khách hàng trung thành",
+                         "Khách hàng tiềm năng", "Khách hàng có nguy cơ mất"]
     elif optimal_k == 5:
-        ten_phan_khuc = ["Khách hàng VIP", "Khách hàng trung thành", "Khách hàng ổn định", "Khách hàng cần chăm sóc", "Khách hàng có nguy cơ mất"]
+        ten_phan_khuc = ["Khách hàng VIP", "Khách hàng trung thành",
+                         "Khách hàng ổn định", "Khách hàng cần chăm sóc", "Khách hàng có nguy cơ mất"]
     elif optimal_k == 6:
-        ten_phan_khuc = ["Khách hàng VIP", "Khách hàng trung thành", "Khách hàng tiềm năng", "Khách hàng ổn định", "Khách hàng cần chăm sóc", "Khách hàng có nguy cơ mất"]
+        ten_phan_khuc = ["Khách hàng VIP", "Khách hàng trung thành", "Khách hàng tiềm năng",
+                         "Khách hàng ổn định", "Khách hàng cần chăm sóc", "Khách hàng có nguy cơ mất"]
     else:
-        ten_phan_khuc = [f"Phân khúc {i+1} (Điểm cao)" if i == 0 else f"Phân khúc {i+1} (Điểm thấp)" if i == optimal_k-1 else f"Phân khúc {i+1}" for i in range(optimal_k)]
+        ten_phan_khuc = [f"Phân khúc {i+1} (Điểm cao)" if i == 0 else f"Phân khúc {i+1} (Điểm thấp)" if i ==
+                         optimal_k-1 else f"Phân khúc {i+1}" for i in range(optimal_k)]
 
     phan_khuc_mapping = {}
     for idx, (cluster_id, row) in enumerate(cluster_ranking.iterrows()):
         phan_khuc_mapping[cluster_id] = ten_phan_khuc[idx]
     return phan_khuc_mapping
+
 
 phan_khuc_mapping = tu_dong_gan_phan_khuc(optimal_k, cluster_ranking)
 
@@ -497,14 +519,13 @@ for _, row in df_rfm_final.iterrows():
             INSERT (KhachHangID, Recency, Frequency, Monetary, Cluster, PhanKhuc)
             VALUES (source.KhachHangID, source.Recency, source.Frequency, 
                     source.Monetary, source.Cluster, source.PhanKhuc);
-    """, row.KhachHangID, int(row.Recency), float(row.Frequency), 
-        float(row.Monetary), int(row.Cluster), row.PhanKhuc)
+    """, row.KhachHangID, int(row.Recency), float(row.Frequency),
+                   float(row.Monetary), int(row.Cluster), row.PhanKhuc)
 conn.commit()
 print("\n✅ Đã lưu kết quả phân cụm và phân khúc vào database!")
 
 # --- Bước 10: Visualization ---
 
-import seaborn as sns
 
 plt.figure(figsize=(14, 5))
 

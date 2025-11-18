@@ -13,7 +13,7 @@ from PIL import Image
 from segment_reasoning_logic import SegmentReasoningEngine
 odbc_driver = "ODBC Driver 17 for SQL Server"
 server = "localhost\\SQLEXPRESS"
-database = "test6"
+database = "crm_ctm"
 encrypt = "yes"
 trust_server_certificate = "yes"
 
@@ -40,7 +40,7 @@ config_data = {
             'id': 'awareness',
             'icon': '🚀',
             'title': 'Tăng Nhận diện Tương tác',
-            'description': 'Tái kích hoạt khách hàng ngừng mua để giảm tỷ lệ rời bỏ bên tăng tương tác và khôi phục nguồn doanh thu tiềm năng .',
+            'description': 'Tái kích hoạt khách hàng ngừng mua để giảm tỷ lệ rời bỏ bên tăng tương tác và khôi phục nguồn doanh thu tiềm năng cho doanh nghiệp.',
             'color': '#F59E0B',  # Màu cam
             'segments_owned': ['Khách hàng có nguy cơ mất', 'Khách hàng yếu'],
             'why': '❗ Đang trong giai đoạn "nguy hiểm" (sắp mất vĩnh viễn)\n❗ Từng mua → Có nhu cầu, chỉ cần lý do để quay lại\n❗ Chi phí giữ chân < Chi phí tìm khách mới (1/5 - 1/7)\n❗ Tỷ lệ khôi phục: 15-30% nếu làm đúng'
@@ -460,7 +460,7 @@ def load_detailed_segment_data(segment_name):
 
     try:
         query = """
-        SELECT 
+        SELECT
             KhachHangID AS CustomerID,
             Recency,
             Frequency,
@@ -485,7 +485,7 @@ def load_all_customers_for_comparison():
 
     try:
         query = """
-        SELECT 
+        SELECT
             KhachHangID AS CustomerID,
             Recency,
             Frequency,
@@ -621,6 +621,208 @@ def format_currency(value):
         return f"{val:,.0f} ₫".replace(",", ".")
     except (ValueError, TypeError, AttributeError):
         return "0 ₫"
+
+
+def generate_dynamic_marketplace_analysis(goal_id, df_real_segments):
+    """
+    Generate phân tích động cho Marketplace dựa trên data thực tế
+
+    Args:
+        goal_id: ID của objective (revenue, awareness, conversion, launch)
+        df_real_segments: DataFrame chứa data phân khúc thực tế
+
+    Returns:
+        dict: {'message': str, 'recommended': list, 'insights': dict}
+    """
+    if df_real_segments.empty:
+        # Fallback to static message
+        return config_data["marketplaceLogic"].get(goal_id, {})
+
+    # Tính toán metrics
+    total_customers = df_real_segments['SoLuong'].sum()
+    total_revenue = df_real_segments['TongDoanhThu'].sum()
+
+    # Map segments
+    map_rich = ['Khách hàng VIP', 'Khách hàng trung thành']
+    map_at_risk = ['Khách hàng có nguy cơ mất', 'Khách hàng yếu']
+    map_new = ['Khách hàng mới', 'Khách hàng tiềm năng']
+
+    # Tính tỷ lệ từng nhóm
+    rich_data = df_real_segments[df_real_segments['PhanKhuc'].isin(map_rich)]
+    at_risk_data = df_real_segments[df_real_segments['PhanKhuc'].isin(
+        map_at_risk)]
+    new_data = df_real_segments[df_real_segments['PhanKhuc'].isin(map_new)]
+
+    rich_count = rich_data['SoLuong'].sum()
+    at_risk_count = at_risk_data['SoLuong'].sum()
+    new_count = new_data['SoLuong'].sum()
+
+    rich_revenue = rich_data['TongDoanhThu'].sum()
+    at_risk_revenue = at_risk_data['TongDoanhThu'].sum()
+    new_revenue = new_data['TongDoanhThu'].sum()
+
+    rich_pct = (rich_count / total_customers *
+                100) if total_customers > 0 else 0
+    at_risk_pct = (at_risk_count / total_customers *
+                   100) if total_customers > 0 else 0
+    new_pct = (new_count / total_customers * 100) if total_customers > 0 else 0
+
+    # Lấy RFM trung bình của từng nhóm
+    rich_monetary_avg = rich_data['M_TB'].mean() if not rich_data.empty else 0
+    at_risk_monetary_avg = at_risk_data['M_TB'].mean(
+    ) if not at_risk_data.empty else 0
+    new_monetary_avg = new_data['M_TB'].mean() if not new_data.empty else 0
+
+    # Generate message dựa trên goal_id và data thực tế
+    insights = {}
+    if goal_id == 'revenue':
+        message = f"💰 **Phân tích chuyên sâu:**\n\n"
+        message += f"**✅ Điểm mạnh vượt trội:**\n\n"
+        if rich_pct > 30:
+            message += f"• Tỷ lệ VIP/Trung thành **{rich_pct:.1f}%** VƯỢT chuẩn ngành (20-25%) → Chất lượng khách hàng xuất sắc\n\n"
+        else:
+            message += f"• Tỷ lệ VIP/Trung thành **{rich_pct:.1f}%** → Còn dư địa phát triển (mục tiêu: 30%+)\n\n"
+            message += f"• AOV **{format_currency(rich_monetary_avg)}** cao gấp 3-4 lần khách thường\n\n"
+            message += f"• Đóng góp **{format_currency(rich_revenue)}** doanh thu từ chỉ {rich_pct:.1f}% khách hàng\n\n"
+            message += f"• Frequency trung bình **{rich_data['F_TB'].mean():.1f} lần/năm** - mức độ trung thành tốt\n\n"
+
+            # Phân tích sâu
+            ltv_potential = rich_monetary_avg * \
+                (rich_data['F_TB'].mean(
+                ) if not rich_data.empty and rich_data['F_TB'].mean() > 0 else 5)
+            upsell_potential = rich_revenue * 0.2
+
+            message += f"**🚀 Tiềm năng khai thác:**\n\n"
+            message += f"• Lifetime Value dự kiến: **{format_currency(ltv_potential)}**/khách\n\n"
+            message += f"• Nếu tăng AOV 20% qua Upsell → Thêm **{format_currency(upsell_potential)}**/năm\n\n"
+            message += f"• Chi phí marketing ≈ **0 đồng** (100% automation qua email)\n\n"
+            message += f"• ROI kỳ vọng: **400-600%** - cao nhất trong tất cả tactics\n\n"
+
+            message += f"**💡 Khuyến nghị chiến lược:**\n\n"
+            message += f"• **Ưu tiên tuyệt đối** - nhóm này mang lại lợi nhuận cao nhất\n\n"
+            message += f"• Tập trung **Upsell/Cross-sell** sản phẩm cao cấp hơn\n\n"
+            message += f"• **TRÁNH discount sâu** - họ sẵn sàng trả giá đầy đủ\n\n"
+            message += f"• Xây dựng **VIP Program** với quyền lợi riêng biệt\n\n"
+        insights = {
+            'target_customers': int(rich_count),
+            'target_revenue': f"{format_currency(rich_revenue)}",
+            'avg_order_value': f"{format_currency(rich_monetary_avg)}",
+            'segment_percentage': f"{rich_pct:.1f}%"
+        }
+        recommended = ['mp_voucher', 'mp_combo', 'mp_livestream']
+    elif goal_id == 'awareness':
+        message = f"⚠️ **Phân tích chuyên sâu:**\n\n"
+
+        if at_risk_pct > 25:
+            message += f"**🚨 CẢNH BÁO NGHIÊM TRỌNG:**\n\n"
+        else:
+            message += f"**⚠️ Cần theo dõi sát:**\n\n"
+
+        message += f"• **{at_risk_pct:.1f}%** khách hàng đang trong vùng nguy hiểm (chuẩn an toàn: <20%)\n\n"
+        message += f"• Đang 'ngồi trên' **{format_currency(at_risk_revenue)}** doanh thu tiềm ẩn có thể BỐC HƠI bất cứ lúc nào\n\n"
+        message += f"• Recency trung bình **~{at_risk_data['R_TB'].mean():.0f} ngày** - đã quá lâu không tương tác\n\n"
+        message += f"• Frequency chỉ còn **{at_risk_data['F_TB'].mean():.1f} lần/năm** - đang giảm dần\n\n"
+
+        # Phân tích chi phí
+        cost_to_retain = at_risk_revenue * 0.3
+        cost_to_acquire_new = at_risk_count * 500000
+
+        message += f"**💸 Phân tích chi phí cơ hội:**\n\n"
+        message += f"• Chi phí giữ chân (discount 30%): **~{format_currency(cost_to_retain)}**\n\n"
+        message += f"• Chi phí tìm **{at_risk_count:,}** khách MỚI thay thế: **~{format_currency(cost_to_acquire_new)}**\n\n"
+        message += f"• **Kết luận:** Giữ chân **RẺ HƠN 5-7 lần** so với tìm khách mới\n\n"
+        message += f"• Nếu mất nhóm này → Phải tốn **{format_currency(cost_to_acquire_new)}** + thời gian 6-12 tháng rebuild\n\n"
+
+        message += f"**💡 Khuyến nghị khẩn cấp:**\n\n"
+        message += f"• **HÀNH ĐỘNG NGAY** trong 7-14 ngày (sau đó họ sẽ mất vĩnh viễn)\n\n"
+        message += f"• Flash Sale **40-60%** OFF + Free shipping\n\n"
+        message += f"• Email Win-back cá nhân hóa với lời nhắn riêng\n\n"
+        message += f"• Mục tiêu: Khôi phục **20-30%** → Cứu được **~{format_currency(at_risk_revenue * 0.25)}**\n\n"
+        insights = {
+            'at_risk_customers': int(at_risk_count),
+            'revenue_at_risk': f"{format_currency(at_risk_revenue)}",
+            'avg_order_value': f"{format_currency(at_risk_monetary_avg)}",
+            'segment_percentage': f"{at_risk_pct:.1f}%"
+        }
+        recommended = ['mp_flash_sale', 'mp_voucher', 'mp_livestream']
+
+    elif goal_id == 'conversion':
+        message = f"🚀 **Phân tích chuyên sâu:**\n\n"
+        message += f"**📊 Hiện trạng:**\n"
+        message += f"• **{new_pct:.1f}%** là khách mới/tiềm năng - TỶ LỆ CAO (chuẩn: 30-40%)\n"
+        message += f"• AOV chỉ **{format_currency(new_monetary_avg)}** - THẤP HƠN VIP {((rich_monetary_avg - new_monetary_avg) / rich_monetary_avg * 100):.0f}%\n"
+        message += f"• Đang để 'tiền nằm trên đường' - chưa khai thác hết giá trị\n\n"
+
+        # Cơ hội tăng trưởng
+        conversion_40_revenue = new_count * 0.4 * \
+            new_monetary_avg * 1.5  # Giả sử mua lần 2 tăng 50%
+        message += f"**💰 Tiềm năng KHỔNG LỒ:**\n"
+        message += f"• Tỷ lệ mua lần 2 hiện tại: ~15% (NGÀNH: 40%+)\n"
+        message += f"• Nếu đạt chuẩn 40%: +{format_currency(conversion_40_revenue)} doanh thu mới\n"
+        message += f"• LTV tăng gấp 3 lần khi họ trở thành khách quen\n\n"
+
+        message += f"**💡 Khuyến nghị chiến thuật:**\n"
+        message += f"• Chuỗi Onboarding email 7-14 ngày (critical window)\n"
+        message += f"• Voucher 30% cho lần mua thứ 2 (phá rào cản giá)\n"
+        message += f"• Combo/Bundle giá tốt để tăng perceived value\n"
+        message += f"• KPI: Đẩy second purchase rate từ 15% → 40%"
+        insights = {
+            'new_customers': int(new_count),  # Thêm int()
+            # Format currency
+            'current_revenue': f"{format_currency(new_revenue)}",
+            # Format currency
+            'avg_order_value': f"{format_currency(new_monetary_avg)}",
+            'segment_percentage': f"{new_pct:.1f}%",  # Format %
+            'growth_potential': f"Nếu chuyển đổi 40% → +{format_currency(new_count * 0.4 * new_monetary_avg)}"
+        }
+        recommended = ['mp_ads', 'mp_voucher', 'mp_combo']
+
+    elif goal_id == 'launch':
+        message = f"✨ **Phân tích chuyên sâu:**\n\n"
+
+        # Đánh giá độ sẵn sàng
+        message += f"**🎯 Đánh giá độ phù hợp:**\n"
+        message += f"• **{rich_count:,} VIP/Trung thành** ({rich_pct:.1f}%) - Nhóm LÝ TƯỞNG cho product launch\n"
+        message += f"• Họ là 'Early Adopters' sẵn sàng thử sản phẩm mới\n"
+        message += f"• Trust level CAO → Tỷ lệ conversion 50%+ (vs 2-5% khách lạ)\n\n"
+
+        # Dự báo kết quả
+        expected_orders = int(rich_count * 0.5)
+        expected_revenue = expected_orders * rich_monetary_avg * \
+            1.2  # Giả sử sản phẩm mới giá cao hơn 20%
+        expected_ugc = int(rich_count * 0.3)
+        message += f"**📈 Dự báo kết quả:**\n"
+        message += f"• Đơn hàng ngay trong 48h đầu: ~{expected_orders} đơn\n"
+        message += f"• Doanh thu wave 1: ~{format_currency(expected_revenue)}\n"
+        message += f"• UGC/Reviews: ~{expected_ugc} trong 7 ngày (social proof cho wave 2)\n\n"
+
+        message += f"**💡 Khuyến nghị triển khai:**\n"
+        message += f"• Phase 1 (48h): VIP Exclusive - FOMO cực mạnh\n"
+        message += f"• Phase 2 (ngày 3-5): Livestream launch - viral\n"
+        message += f"• Phase 3 (ngày 6-7): Public Flash Sale - scale\n"
+        message += f"• Mục tiêu: Bán 40-60% stock ngay đợt đầu"
+
+        insights = {
+            'vip_customers': int(rich_count),
+            'vip_revenue': f"{format_currency(rich_revenue)}",
+            'avg_order_value': f"{format_currency(rich_monetary_avg)}",
+            'expected_conversion': f"{int(rich_count * 0.5)} đơn hàng (50% conversion)"
+        }
+        recommended = ['mp_livestream', 'mp_flash_sale', 'mp_voucher']
+
+    else:
+        # Fallback
+        return config_data["marketplaceLogic"].get(goal_id, {
+            'message': 'Chưa có phân tích cho mục tiêu này',
+            'recommended': [],
+            'insights': {}
+        })
+
+    return {
+        'message': message,
+        'recommended': recommended,
+        'insights': insights
+    }
 
 
 def go_to_step(step):
@@ -1136,7 +1338,7 @@ def render_step_2():
                             </div>
                             <div style='color: #666; font-size: 17px;
                             <div style='color:{c}; font-size: 18px; font-weight: bold;'>
-                               SL:{d['SoLuong']} 
+                               SL:{d['SoLuong']}
                             </div>
                         </div>
                         """,
@@ -1203,12 +1405,10 @@ def render_step_3():
         st.session_state.reasoning_engine = SegmentReasoningEngine()
 
     reasoning_engine = st.session_state.reasoning_engine
-
     # Load toàn bộ data để so sánh (cache trong session_state)
     if 'all_customers_data' not in st.session_state:
         with st.spinner("Đang tải dữ liệu khách hàng..."):
             st.session_state.all_customers_data = load_all_customers_for_comparison()
-
     all_data = st.session_state.all_customers_data
 
     # HIỂN THỊ TỪNG PHÂN KHÚC VỚI REASONING ĐỘNG
@@ -1318,16 +1518,13 @@ def render_step_4_owned():
     owned_tactics = tactics_data.get('owned', [])
     recommendations = config_data["mockDataOwned"]["tacticRecommendations"].get(
         segment_id, [])
-
     st.markdown("### 🌐 Kênh sở hữu (Owned Channels)")
     st.caption(
         "Tập trung vào cá nhân hóa sâu và tự động hóa trên website, app, CRM")
-
     if not owned_tactics:
         st.info("ℹ️ Không có chiến thuật nào được định nghĩa cho phân khúc này.")
         return
     st.markdown("<br>", unsafe_allow_html=True)
-
     for tactic in owned_tactics:
         is_recommended = tactic['id'] in recommendations
 
@@ -1377,30 +1574,56 @@ def render_step_4_owned():
 
 
 def render_step_4_marketplace():
-    """Render chiến thuật cho Marketplace với LOGIC THÔNG MINH"""
+    """Render chiến thuật cho Marketplace với LOGIC THÔNG MINH dựa trên DATA THỰC TẾ"""
     all_tactics = config_data["mockDataMarketplace"]["tactics"]["marketplace"]
     goal_id = st.session_state.selected_objective['id']
 
-    # Logic đề xuất thông minh
-    marketplace_logic = config_data.get("marketplaceLogic", {})
-    logic_for_goal = marketplace_logic.get(goal_id, {})
-    recommendations = logic_for_goal.get('recommended', [])
-    message = logic_for_goal.get('message', '')
+    # Lấy data phân khúc thực tế
+    df_real = st.session_state.real_segment_data
+
+    # GEN DYNAMIC ANALYSIS thay vì dùng static message
+    dynamic_analysis = generate_dynamic_marketplace_analysis(goal_id, df_real)
+    recommendations = dynamic_analysis.get('recommended', [])
+    message = dynamic_analysis.get('message', '')
+    insights = dynamic_analysis.get('insights', {})
 
     st.markdown("### 🛍️ Kênh Sàn TMĐT (Marketplace)")
-    st.caption("Tận dụng các công cụ có sẵn của Shopee, Lazada, Tiki...")
-
-    # Hiển thị phân tích và đề xuất
+    # Hiển thị phân tích và đề xuất (GIỜ ĐÃ ĐỘNG DỰA TRÊN DATA THỰC TẾ)
     if message:
-        st.info(f"💡 **Phân tích:** {message}")
+        lines = message.split('\n')
+        for line in lines:
+            if line.strip():  # Chỉ hiển thị dòng không rỗng
+                if line.strip().startswith('•'):
+                    # Bullet point - thụt vào
+                    st.markdown(f"&nbsp;&nbsp;&nbsp;&nbsp;{line}")
+                else:
+                    # Header hoặc text thường
+                    st.markdown(line)
+    if insights:
+        with st.expander("📊 Xem chi tiết phân tích", expanded=False):
+            # Map key sang tiếng Việt
+            labels = {
+                'target_customers': '👥 Số lượng khách hàng mục tiêu',
+                'target_revenue': '💰 Doanh thu mục tiêu',
+                'avg_order_value': '🛒 Giá trị đơn trung bình',
+                'segment_percentage': '📊 Tỷ lệ phân khúc',
+                'at_risk_customers': '⚠️ Số khách hàng có nguy cơ',
+                'revenue_at_risk': '💸 Doanh thu có nguy cơ mất',
+                'new_customers': '🆕 Số khách hàng mới/tiềm năng',
+                'current_revenue': '💵 Doanh thu hiện tại',
+                'growth_potential': '📈 Tiềm năng tăng trưởng',
+                'vip_customers': '👑 Số khách hàng VIP',
+                'vip_revenue': '💎 Doanh thu từ VIP',
+                'expected_conversion': '🎯 Dự kiến chuyển đổi'
+            }
+        # Hiển thị dạng list
+            for key, value in insights.items():
+                label = labels.get(key, key)
+                st.markdown(f"**{label}:** {value}")
 
     st.markdown("<br>", unsafe_allow_html=True)
-
-    # Hiển thị tất cả tactics, highlight recommended
     for tactic in all_tactics:
         is_recommended = tactic['id'] in recommendations
-
-        # Container với border
         with st.container(border=True):
             # Badge recommendation
             if is_recommended:
@@ -1973,7 +2196,7 @@ def render_dashboard_view():
 
         with cols[5]:
             if campaign_status == '📝 Đã lưu':
-                st.button("▶️ Kích hoạt", key=f"act_{i}", on_click=activate_campaign, args=(
+                st.button("▶️ ", key=f"act_{i}", on_click=activate_campaign, args=(
                     campaign_id,), use_container_width=True)
             elif campaign_status == '🟢 Đang chạy':
                 st.button("📝 Nhập KQ", key=f"res_{i}", on_click=show_result_modal, args=(
@@ -1981,10 +2204,8 @@ def render_dashboard_view():
             elif campaign_status == '🟡 Đã kết thúc':
                 st.button("✏️ Xem/Sửa", key=f"res_{i}", on_click=show_result_modal, args=(
                     campaign_id,), use_container_width=True)
-
-        cols[6].write(campaign_status)
-
-        with cols[7]:
+        cols[7].write(campaign_status)
+        with cols[6]:
             if st.button("👁️", key=f"demo_{i}", help="Xem demo", use_container_width=True):
                 st.session_state.demo_campaign_id_dashboard = campaign_id
                 # st.rerun()
