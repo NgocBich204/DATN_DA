@@ -331,21 +331,6 @@ def show():
     # ===================================================
     st.markdown("<br>", unsafe_allow_html=True)
 
-    action_col1, action_col2, action_col3 = st.columns(3)
-
-    with action_col1:
-        if st.button("📥 Xuất báo cáo", use_container_width=True):
-            st.info("📊 Đang xuất báo cáo PDF...")
-
-    with action_col2:
-        if st.button("🔔  cảnh báo", use_container_width=True):
-            st.info("⚙️ Mở cài đặt cảnh báo...")
-
-    with action_col3:
-        if st.button("📊 Xem chi tiết", use_container_width=True):
-            st.info("🔍 Chuyển sang trang phân tích...")
-    st.markdown("<br>", unsafe_allow_html=True)
-
     # Timestamp để force reload
     timestamp = int(time.time() * 1000)
 
@@ -431,7 +416,7 @@ def show():
                 <iframe 
                     id="powerbi-frame"
                     title="dashboard_crm_v1" 
-                    src="https://app.powerbi.com/reportEmbed?reportId=9c408b6d-ccaa-48a7-8480-5d452203d92a&autoAuth=true&ctid=6ac2ad06-692c-4663-b7af-a9ff2a866d0c&t={timestamp}" 
+                    src="https://app.powerbi.com/reportEmbed?reportId=5a2d5b8c-dc57-4b6f-9f8f-96e577b47f88&autoAuth=true&ctid=6ac2ad06-692c-4663-b7af-a9ff2a866d0c&actionBarEnabled=true&t={timestamp}" 
                     frameborder="0" 
                     allowFullScreen="true">
                 </iframe>

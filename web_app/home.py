@@ -3,13 +3,14 @@ import time
 from datetime import datetime
 import random
 
+
 def show():
     # Animation effect
     if st.session_state.get('show_animation', True):
         with st.spinner(''):
             time.sleep(0.2)
         st.session_state.show_animation = False
-    
+
     # Hero Section với gradient background
     st.markdown("""
         <div class="animate-fade-in" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
@@ -48,16 +49,16 @@ def show():
             </div>
         </div>
     """, unsafe_allow_html=True)
-    
+
     # Main Features Section
     st.markdown("""
         <h2 style="text-align: center; font-size: 2.2rem; font-weight: 700; margin: 40px 0;">
             Tính năng <span class="gradient-text">nổi bật</span>
         </h2>
     """, unsafe_allow_html=True)
-    
+
     col1, col2, col3 = st.columns(3)
-    
+
     with col1:
         st.markdown("""
             <div class="modern-card" style="text-align: center; padding: 30px; min-height: 280px; display: flex; flex-direction: column; justify-content: space-between;">
@@ -75,7 +76,7 @@ def show():
                 </p>
             </div>
         """, unsafe_allow_html=True)
-    
+
     with col2:
         st.markdown("""
             <div class="modern-card" style="text-align: center; padding: 30px; min-height: 280px; display: flex; flex-direction: column; justify-content: space-between;">
@@ -86,14 +87,14 @@ def show():
                                  margin: 0 auto 20px; box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3);">
                         <span style="font-size: 2rem;">🔍</span>
                     </div>
-                    <h3 style="color: #1f2937; font-size: 1.2rem; margin-bottom: 12px;">Phân Tích RFM</h3>
+                    <h3 style="color: #1f2937; font-size: 1.2rem; margin-bottom: 12px;">Tra cứu hồ sơ</h3>
                 </div>
                 <p style="color: #6b7280; font-size: 0.9rem; line-height: 1.5;">
                     Phân khúc khách hàng tự động bằng AI, tìm kiếm thông minh và quản lý profile chi tiết
                 </p>
             </div>
         """, unsafe_allow_html=True)
-    
+
     with col3:
         st.markdown("""
             <div class="modern-card" style="text-align: center; padding: 30px; min-height: 280px; display: flex; flex-direction: column; justify-content: space-between;">
@@ -111,9 +112,9 @@ def show():
                 </p>
             </div>
         """, unsafe_allow_html=True)
-    
+
     st.markdown("<br>", unsafe_allow_html=True)
-    
+
     # Workflow Section
     st.markdown("""
         <div style="background: #f9fafb; border-radius: 16px; padding: 30px; margin: 30px 0;">
@@ -163,39 +164,38 @@ def show():
             </div>
         </div>
     """, unsafe_allow_html=True)
-    
+
     # Quick Actions
     st.markdown("""
         <h2 style="font-size: 1.8rem; font-weight: 700; margin: 30px 0 20px;">
             ⚡ Truy cập nhanh
         </h2>
     """, unsafe_allow_html=True)
-    
+
     col1, col2, col3, col4 = st.columns(4)
-    
+
     with col1:
         if st.button("📊 Xem Dashboard", use_container_width=True, key="quick_dashboard"):
             st.session_state.page = "Tổng quát"
             st.rerun()
-    
+
     with col2:
         if st.button("📥 Import dữ liệu", use_container_width=True, key="quick_import"):
             st.session_state.page = "Import"
             st.rerun()
-    
+
     with col3:
         if st.button("🔍 Tra cứu KH", use_container_width=True, key="quick_search"):
             st.session_state.page = "Tra cứu"
             st.rerun()
-    
+
     with col4:
         if st.button("🎯 Tạo chiến dịch", use_container_width=True, key="quick_campaign"):
             st.session_state.page = "Chiến dịch"
             st.rerun()
     st.markdown("<br>", unsafe_allow_html=True)
-    col1, col2 = st.columns([1, 1]) 
-   
-            
+    col1, col2 = st.columns([1, 1])
+
     with col2:
         # Khối Mẹo sử dụng
         st.markdown("""
@@ -217,7 +217,7 @@ def show():
                 ">Tìm hiểu thêm →</button>
             </div>
         """, unsafe_allow_html=True)
-    
+
     with col1:
         # Khối Mẹo sử dụng
         st.markdown("""
@@ -239,7 +239,7 @@ def show():
                 ">📞 Cần hỗ trợ?  →</button>
             </div>
         """, unsafe_allow_html=True)
-    
+
     # Footer
     st.markdown("""
         <div style="margin-top: 50px; padding: 20px 0; border-top: 1px solid #e5e7eb; text-align: center;">
